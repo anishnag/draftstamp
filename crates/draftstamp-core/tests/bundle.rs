@@ -71,7 +71,7 @@ fn empty_folder_is_an_error() {
 }
 
 #[test]
-fn export_holds_the_three_files() {
+fn export_holds_the_bundle_and_verifier() {
     let net = Network::default();
     let bundle = Bundle::create(&net, project().path(), &StampOptions::default()).unwrap();
     let out = TempDir::new();
@@ -88,7 +88,8 @@ fn export_holds_the_three_files() {
         [
             format!("{id}/proof.ots"),
             format!("{id}/receipt.json"),
-            format!("{id}/snapshot.zip")
+            format!("{id}/snapshot.zip"),
+            format!("{id}/verify.py"),
         ]
     );
 }

@@ -17,6 +17,9 @@ use crate::commitment::stamp::{File, commit};
 use crate::commitment::{Advisory, Receipt};
 use crate::id::{StampId, iso_time};
 
+/// The stdlib-only verifier included in every export.
+const VERIFY_PY: &str = include_str!("../../../tools/verify.py");
+
 /// Folder names never descended into.
 const SKIPPED_DIRS: [&str; 3] = [".git", ".draftstamp", "__MACOSX"];
 
@@ -146,7 +149,8 @@ impl Bundle {
         Ok(leaves.len())
     }
 
-    /// Writes one zip for a reviewer: `<id>/snapshot.zip`, `<id>/receipt.json`, `<id>/proof.ots`.
+    /// Writes one zip for a reviewer: `<id>/snapshot.zip`, `<id>/receipt.json`, `<id>/proof.ots`,
+    /// and `<id>/verify.py`, which checks the bundle without DraftStamp.
     pub fn export(&self, out: &Path) -> Result<(), Error> {
         let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
         let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
@@ -154,6 +158,7 @@ impl Bundle {
             ("snapshot.zip", self.snapshot.clone()),
             ("receipt.json", self.receipt.to_json().into_bytes()),
             ("proof.ots", self.proof.to_bytes()),
+            ("verify.py", VERIFY_PY.as_bytes().to_vec()),
         ] {
             zip.start_file(format!("{}/{name}", self.id), stored)?;
             zip.write_all(&bytes)?;
