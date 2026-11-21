@@ -3,6 +3,7 @@
 use crate::Error;
 use crate::format::attestation::Attestation;
 use crate::format::encoding::Reader;
+use crate::format::op::{MAX_MSG, Op};
 use crate::format::tree::Node;
 
 const MAGIC: &[u8; 31] = b"\x00OpenTimestamps\x00\x00Proof\x00\xbf\x89\xe2\xe8\x84\xe8\x92\x94";
@@ -39,6 +40,17 @@ pub enum Status {
     },
 }
 
+/// One step of a recipe from one digest to another: the operations a `.ots` file can express.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Step {
+    /// Append bytes (1 to 4096) to the message.
+    Append(Vec<u8>),
+    /// Prepend bytes (1 to 4096) to the message.
+    Prepend(Vec<u8>),
+    /// Replace the message with its SHA-256.
+    Sha256,
+}
+
 /// A calendar promise: the calendar's base URL and the message it filed the stamp under.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct CalendarEntry {
@@ -49,6 +61,42 @@ pub(crate) struct CalendarEntry {
 impl Proof {
     pub(crate) fn new(digest: [u8; 32], tree: Node) -> Self {
         Proof { digest, tree }
+    }
+
+    /// A proof of `digest` built from `steps` that lead from `digest` to `then`'s digest,
+    /// followed by `then`. For example, a proof for one file whose hash is a leaf of a tree that
+    /// `then` proves. Fails unless the steps, applied to `digest`, give exactly `then.digest()`.
+    pub fn from_steps(digest: [u8; 32], steps: &[Step], then: &Proof) -> Result<Proof, Error> {
+        let ops: Vec<Op> = steps
+            .iter()
+            .map(|s| match s {
+                Step::Append(a) => Op::Append(a.clone()),
+                Step::Prepend(a) => Op::Prepend(a.clone()),
+                Step::Sha256 => Op::Sha256,
+            })
+            .collect();
+        let mut msg = digest.to_vec();
+        for op in &ops {
+            if let Op::Append(a) | Op::Prepend(a) = op
+                && (a.is_empty() || a.len() > MAX_MSG)
+            {
+                return Err(Error::Malformed("step argument must be 1 to 4096 bytes"));
+            }
+            msg = op
+                .apply(&msg)?
+                .expect("append, prepend and sha256 are always evaluated");
+        }
+        if msg != then.digest {
+            return Err(Error::Malformed("steps do not lead to the proof's digest"));
+        }
+        let tree = ops
+            .into_iter()
+            .rev()
+            .fold(then.tree.clone(), |child, op| Node {
+                ops: [(op, child)].into(),
+                ..Node::default()
+            });
+        Ok(Proof { digest, tree })
     }
 
     /// Reads a `.ots` file. Strict and bounded; never panics.

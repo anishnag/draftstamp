@@ -25,4 +25,4 @@ mod util;
 pub use error::Error;
 pub use flows::{stamp, upgrade};
 pub use http::{Http, Response};
-pub use proof::{Proof, Status};
+pub use proof::{Proof, Status, Step};

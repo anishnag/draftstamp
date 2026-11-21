@@ -71,7 +71,7 @@ fn empty_folder_is_an_error() {
 }
 
 #[test]
-fn export_holds_the_three_files() {
+fn export_holds_the_bundle_and_every_file_with_its_proof() {
     let net = Network::default();
     let bundle = Bundle::create(&net, project().path(), &StampOptions::default()).unwrap();
     let out = TempDir::new();
@@ -83,12 +83,76 @@ fn export_holds_the_three_files() {
         .collect();
     names.sort();
     let id = bundle.id();
+    let expected: Vec<String> = [
+        "files/figures/plot.png",
+        "files/figures/plot.png.ots",
+        "files/main.tex",
+        "files/main.tex.ots",
+        "files/sections/intro.tex",
+        "files/sections/intro.tex.ots",
+        "proof.ots",
+        "receipt.json",
+        "snapshot.zip",
+    ]
+    .iter()
+    .map(|n| format!("{id}/{n}"))
+    .collect();
+    assert_eq!(names, expected);
+}
+
+#[test]
+fn every_shared_file_proves_itself_to_bitcoin() {
+    use sha2::{Digest, Sha256};
+
+    let mut net = Network::default();
+    let mut bundle = Bundle::create(&net, project().path(), &StampOptions::default()).unwrap();
+    let paths: Vec<String> = bundle
+        .receipt()
+        .committed()
+        .leaves()
+        .iter()
+        .map(|l| l.path.clone())
+        .collect();
+
+    // Shared while pending: the calendar promise carries over and completes later.
+    let mut pending = bundle.share("main.tex").unwrap();
+    net.anchored = true;
     assert_eq!(
-        names,
-        [
-            format!("{id}/proof.ots"),
-            format!("{id}/receipt.json"),
-            format!("{id}/snapshot.zip"),
-        ]
+        opentimestamps_lite::upgrade(&net, &mut pending.proof).unwrap(),
+        Status::Anchored {
+            height: HEIGHT,
+            time: TIME
+        }
     );
+
+    // Shared after upgrading: each file's proof already reaches Bitcoin.
+    bundle.upgrade(&net).unwrap();
+    for path in &paths {
+        let shared = bundle.share(path).unwrap();
+        let file_hash: [u8; 32] = Sha256::digest(&shared.bytes).into();
+        assert_eq!(
+            shared.proof.digest(),
+            file_hash,
+            "{path}: proof is for this file's bytes"
+        );
+        assert_eq!(shared.proof.status(), Status::Claimed { height: HEIGHT });
+        let mut check = shared.proof.clone();
+        assert_eq!(
+            opentimestamps_lite::upgrade(&net, &mut check).unwrap(),
+            Status::Anchored {
+                height: HEIGHT,
+                time: TIME
+            },
+            "{path}: replays through the tree and the calendars to the block"
+        );
+        let bytes = shared.proof.to_bytes();
+        assert_eq!(
+            draftstamp_core::Proof::from_bytes(&bytes).unwrap(),
+            shared.proof
+        );
+    }
+    assert!(matches!(
+        bundle.share("missing.tex"),
+        Err(Error::NotFound(_))
+    ));
 }

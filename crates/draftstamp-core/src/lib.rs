@@ -16,9 +16,9 @@ mod id;
 mod query;
 mod vault;
 
-pub use bundle::{Bundle, StampOptions, Verified};
+pub use bundle::{Bundle, Shared, StampOptions, Verified};
 pub use error::Error;
 pub use id::StampId;
-pub use opentimestamps_lite::{Http, Proof, Response, Status};
+pub use opentimestamps_lite::{Http, Proof, Response, Status, Step};
 pub use query::{Found, StampInfo, find, history};
 pub use vault::{LocalVault, Vault};

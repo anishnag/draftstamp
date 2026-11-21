@@ -24,7 +24,7 @@ Every stamp produces one self-contained folder in the vault. All three files are
 ```
        draftstamp-cli             draftstamp-desktop
   stamp · log · find ·            same commands, GUI
-  export · verify
+  share · export · verify
               └────────────┬────────────┘
                            ▼
                     draftstamp-core
@@ -42,7 +42,7 @@ Every stamp produces one self-contained folder in the vault. All three files are
 | --- | --- | --- |
 | `opentimestamps-lite` | None: blocking network calls through an `Http` interface the caller supplies | A local, general OpenTimestamps library (not the upstream `opentimestamps` crate): stamping with the public calendars, upgrading, checking proofs against Bitcoin headers. Knows nothing about DraftStamp. |
 | `draftstamp-core` | Files, only in the vault's storage backends | The DraftStamp engine. The `commitment` modules turn files into a commitment and verify them (no I/O); the `vault` modules save and read bundles, find which stamps contain a file, show project history and export evidence. |
-| `draftstamp-cli` | Files and network | The commands; supplies native HTTP to opentimestamps-lite |
+| `draftstamp-cli` | Files and network | The commands (`stamp`, `log`, `find`, `share`, `export`, `verify`); supplies native HTTP to opentimestamps-lite |
 | `draftstamp-desktop` | Files and network | A desktop app (Tauri) on the same engine |
 
 Dependencies point down only: the front ends use `draftstamp-core`, which uses `opentimestamps-lite`. `opentimestamps-lite` stays independent of DraftStamp so others can use it on its own. Anything built later sits on top and never re-implements the format.
@@ -63,4 +63,4 @@ The vault writes through a small storage interface (save, list, read a bundle), 
 
 - Nothing about your work leaves your machine except a blinded 32-byte value sent to the OpenTimestamps calendars.
 - Proofs are completed quietly: any command first upgrades pending proofs, and network failures never block it.
-- The bundle format is open and versioned. A bundle verifies with the official OpenTimestamps client and a stdlib-only script, with no DraftStamp software.
+- The bundle format is open and versioned. Every file can be shared with its own standard `.ots` proof and verified with the official OpenTimestamps client (`ots verify`), with no DraftStamp software and without revealing the other files.

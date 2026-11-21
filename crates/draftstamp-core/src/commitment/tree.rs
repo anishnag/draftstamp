@@ -1,4 +1,4 @@
-//! Leaf hashing, the RFC 6962 Merkle tree, and the commitment (spec section 7.2).
+//! Leaf hashing, the RFC 6962 Merkle tree, inclusion paths, and the commitment.
 
 use super::hash::{Digest, Salt, sha256};
 use super::paths::MAX_PATH_BYTES;
@@ -38,6 +38,48 @@ pub(crate) fn commitment(root: &Digest) -> Digest {
     sha256(&[&[COMMITMENT_PREFIX], COMMITMENT_TAG, &root.0])
 }
 
+/// Which side of the running hash a sibling sits on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Side {
+    Left,
+    Right,
+}
+
+/// RFC 6962 inclusion path (PATH) for leaf `index`: the siblings from the leaf up to the root.
+/// Empty for a one-leaf tree; `None` if `index` is out of range.
+pub(crate) fn audit_path(leaves: &[Digest], index: usize) -> Option<Vec<(Digest, Side)>> {
+    let n = leaves.len();
+    if index >= n {
+        return None;
+    }
+    if n == 1 {
+        return Some(Vec::new());
+    }
+    let k = 1usize << (usize::BITS - 1 - (n - 1).leading_zeros());
+    Some(if index < k {
+        let mut path = audit_path(&leaves[..k], index)?;
+        path.push((root(&leaves[k..])?, Side::Right));
+        path
+    } else {
+        let mut path = audit_path(&leaves[k..], index - k)?;
+        path.push((root(&leaves[..k])?, Side::Left));
+        path
+    })
+}
+
+/// The bytes that turn a file hash into its leaf hash, and a node's child into the node,
+/// as prepend/append arguments for an OpenTimestamps recipe.
+pub(crate) fn leaf_prefix(salt: &Salt, path: &str) -> Vec<u8> {
+    let len = (path.len() as u32).to_be_bytes();
+    [&[LEAF_PREFIX][..], &salt.0, &len, path.as_bytes()].concat()
+}
+
+pub(crate) const NODE_PREFIX_BYTES: [u8; 1] = [NODE_PREFIX];
+
+pub(crate) fn commitment_prefix() -> Vec<u8> {
+    [&[COMMITMENT_PREFIX][..], COMMITMENT_TAG].concat()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -60,6 +102,25 @@ mod tests {
             root(&[d(1), d(2), d(3), d(4), d(5)]),
             Some(node_hash(&four, &d(5)))
         );
+    }
+
+    #[test]
+    fn audit_paths_rebuild_the_root() {
+        for n in 1..=9u8 {
+            let leaves: Vec<Digest> = (0..n).map(d).collect();
+            let expected = root(&leaves).unwrap();
+            for i in 0..n as usize {
+                let mut h = leaves[i];
+                for (sibling, side) in audit_path(&leaves, i).unwrap() {
+                    h = match side {
+                        Side::Right => node_hash(&h, &sibling),
+                        Side::Left => node_hash(&sibling, &h),
+                    };
+                }
+                assert_eq!(h, expected, "n={n} i={i}");
+            }
+            assert!(audit_path(&leaves, n as usize).is_none());
+        }
     }
 
     #[test]

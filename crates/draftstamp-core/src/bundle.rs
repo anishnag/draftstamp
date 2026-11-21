@@ -6,7 +6,7 @@ use std::io::{Cursor, Read, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use opentimestamps_lite::{Http, Proof, Status};
+use opentimestamps_lite::{Http, Proof, Status, Step};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -14,6 +14,9 @@ use crate::Error;
 use crate::commitment::hash::sha256;
 use crate::commitment::paths::{Canonical, canonicalize};
 use crate::commitment::stamp::{File, commit};
+use crate::commitment::tree::{
+    NODE_PREFIX_BYTES, Side, audit_path, commitment_prefix, leaf_hash, leaf_prefix,
+};
 use crate::commitment::{Advisory, Receipt};
 use crate::id::{StampId, iso_time};
 
@@ -36,6 +39,20 @@ pub struct Verified {
     pub files: usize,
     /// The proof's status, checked against Bitcoin where possible.
     pub status: Status,
+}
+
+/// One file from a stamp, with its own standard OpenTimestamps proof.
+///
+/// Anyone can check it with the official client: `ots verify -f <file> <file>.ots`. It reveals
+/// this file's name and salt, and nothing about the stamp's other files.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Shared {
+    /// The file's path inside the stamp.
+    pub path: String,
+    /// The file's exact bytes.
+    pub bytes: Vec<u8>,
+    /// A proof whose digest is the file's SHA-256.
+    pub proof: Proof,
 }
 
 /// One stamp: the exact files (as a zip), the receipt, and the OpenTimestamps proof.
@@ -146,15 +163,100 @@ impl Bundle {
         Ok(leaves.len())
     }
 
-    /// Writes one zip for a reviewer: `<id>/snapshot.zip`, `<id>/receipt.json`, `<id>/proof.ots`.
+    /// One file and its own proof: the file's path through this stamp's tree, followed by the
+    /// stamp's proof. Upgrade first so the file's proof already reaches Bitcoin.
+    pub fn share(&self, path: &str) -> Result<Shared, Error> {
+        let index = self
+            .receipt
+            .committed()
+            .leaves()
+            .iter()
+            .position(|l| l.path == path)
+            .ok_or_else(|| Error::NotFound(path.to_owned()))?;
+        Ok(Shared {
+            path: path.to_owned(),
+            bytes: self.snapshot_file(path)?,
+            proof: self.file_proof(index)?,
+        })
+    }
+
+    fn file_proof(&self, index: usize) -> Result<Proof, Error> {
+        let leaves = self.receipt.committed().leaves();
+        let hashes: Vec<_> = leaves
+            .iter()
+            .map(|l| leaf_hash(&l.salt, &l.path, &l.sha256))
+            .collect();
+        let leaf = &leaves[index];
+        let mut steps = vec![
+            Step::Prepend(leaf_prefix(&leaf.salt, &leaf.path)),
+            Step::Sha256,
+        ];
+        for (sibling, side) in audit_path(&hashes, index).expect("index is in range") {
+            match side {
+                Side::Right => steps.extend([
+                    Step::Prepend(NODE_PREFIX_BYTES.to_vec()),
+                    Step::Append(sibling.0.to_vec()),
+                    Step::Sha256,
+                ]),
+                Side::Left => steps.extend([
+                    Step::Prepend([&NODE_PREFIX_BYTES[..], &sibling.0].concat()),
+                    Step::Sha256,
+                ]),
+            }
+        }
+        steps.extend([Step::Prepend(commitment_prefix()), Step::Sha256]);
+        Ok(Proof::from_steps(leaf.sha256.0, &steps, &self.proof)?)
+    }
+
+    /// One file's bytes from the snapshot, checked against the receipt.
+    fn snapshot_file(&self, path: &str) -> Result<Vec<u8>, Error> {
+        let leaf = self
+            .receipt
+            .committed()
+            .leaves()
+            .iter()
+            .find(|l| l.path == path)
+            .ok_or_else(|| Error::NotFound(path.to_owned()))?;
+        let mut archive = ZipArchive::new(Cursor::new(&self.snapshot))?;
+        let mut bytes = Vec::new();
+        archive
+            .by_name(path)?
+            .take(leaf.size + 1)
+            .read_to_end(&mut bytes)?;
+        if sha256(&[&bytes]) != leaf.sha256 {
+            return Err(Error::Mismatch(format!(
+                "{path} does not match the receipt"
+            )));
+        }
+        Ok(bytes)
+    }
+
+    /// Writes one zip for a reviewer: the bundle (`snapshot.zip`, `receipt.json`, `proof.ots`)
+    /// and, under `files/`, every file with its own proof, checkable with `ots verify` alone.
     pub fn export(&self, out: &Path) -> Result<(), Error> {
         let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
-        let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-        for (name, bytes) in [
-            ("snapshot.zip", self.snapshot.clone()),
-            ("receipt.json", self.receipt.to_json().into_bytes()),
-            ("proof.ots", self.proof.to_bytes()),
-        ] {
+        let stored = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            .large_file(true);
+        let mut entries = vec![
+            ("snapshot.zip".to_owned(), self.snapshot.clone()),
+            (
+                "receipt.json".to_owned(),
+                self.receipt.to_json().into_bytes(),
+            ),
+            ("proof.ots".to_owned(), self.proof.to_bytes()),
+        ];
+        for (index, leaf) in self.receipt.committed().leaves().iter().enumerate() {
+            entries.push((
+                format!("files/{}", leaf.path),
+                self.snapshot_file(&leaf.path)?,
+            ));
+            entries.push((
+                format!("files/{}.ots", leaf.path),
+                self.file_proof(index)?.to_bytes(),
+            ));
+        }
+        for (name, bytes) in entries {
             zip.start_file(format!("{}/{name}", self.id), stored)?;
             zip.write_all(&bytes)?;
         }
