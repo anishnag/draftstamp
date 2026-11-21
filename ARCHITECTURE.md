@@ -22,7 +22,7 @@ Every stamp produces one self-contained folder in the vault. All three files are
 ## Crates
 
 ```
-                    draftstamp-cli                   desktop app (later)
+                    draftstamp-cli                   desktop app
           stamp · log · find · export · verify       same engine, GUI
                            │
          ┌─────────────────┼──────────────────┐
@@ -33,28 +33,26 @@ Every stamp produces one self-contained folder in the vault. All three files are
                      Bitcoin check      storage backends
 ```
 
-| Crate | I/O | Role | Status |
-| --- | --- | --- | --- |
-| `draftstamp-core` | None | Canonical paths, salted Merkle tree, commitment, receipts, file verification | Built |
-| `draftstamp-ots` | None: network through an `Http` interface the host supplies | Stamping with OpenTimestamps calendars, upgrading, checking proofs against Bitcoin headers | Built |
-| `draftstamp-vault` | Files, through storage backends | Writing and reading bundles, finding which stamps contain a file, project history, exporting evidence | Next |
-| `draftstamp-cli` | Files and network | The commands; supplies native HTTP to ots | Next |
+| Crate | I/O | Role |
+| --- | --- | --- |
+| `draftstamp-core` | None | Canonical paths, salted Merkle tree, commitment, receipts, file verification |
+| `draftstamp-ots` | None: network through an `Http` interface the host supplies | Stamping with OpenTimestamps calendars, upgrading, checking proofs against Bitcoin headers |
+| `draftstamp-vault` | Files, through storage backends | Writing and reading bundles, finding which stamps contain a file, project history, exporting evidence |
+| `draftstamp-cli` | Files and network | The commands; supplies native HTTP to ots |
 
-There is no WebAssembly build: the CLI runs the engine natively, and the desktop app will call the same Rust code directly.
+There is no WebAssembly build: the CLI runs the engine natively, and the desktop app calls the same Rust code directly.
 
 **Website.** A static landing page that explains DraftStamp and links to the CLI download. It performs no stamping or verification and has no accounts or backend.
 
-`draftstamp-core` and `draftstamp-ots` never depend on each other. `draftstamp-vault` builds on both (it reads receipts and proofs), and the CLI, later the desktop app, sits on top. Anything built later never re-implements the format.
+`draftstamp-core` and `draftstamp-ots` never depend on each other. `draftstamp-vault` builds on both (it reads receipts and proofs), and the CLI and the desktop app sit on top. Anything built later never re-implements the format.
 
 ## Storage
 
 The vault writes through a small storage interface (save, list, read a bundle), so where bundles live can change without touching the rest.
 
-| Backend | When |
-| --- | --- |
-| Local folder (default `~/DraftStamp`, or a synced Dropbox or iCloud folder) | v1 |
-| Git repository: the commit is the snapshot; receipt and proof kept alongside | Later |
-| Remote encrypted storage: encrypted on the device, stored as ciphertext | Later |
+- **Local folder:** default `~/DraftStamp`, or a synced Dropbox or iCloud folder.
+- **Git repository:** the commit is the snapshot; receipt and proof are kept alongside.
+- **Remote encrypted storage:** encrypted on the device, stored as ciphertext.
 
 ## Rules
 
