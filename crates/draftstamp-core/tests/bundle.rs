@@ -218,3 +218,44 @@ fn project_comes_from_the_draftstamp_file() {
         "an explicit option wins"
     );
 }
+
+#[test]
+fn a_single_file_is_a_one_file_stamp() {
+    let net = Network::default();
+    let folder = project();
+    folder.write(".draftstampignore", b"*.tex\n");
+    let bundle = Bundle::create(
+        &net,
+        &folder.path().join("main.tex"),
+        &StampOptions::default(),
+    )
+    .unwrap();
+    let leaves = bundle.receipt().committed().leaves();
+    assert_eq!(leaves.len(), 1);
+    assert_eq!(
+        leaves[0].path, "main.tex",
+        "the file's name; the ignore file does not apply"
+    );
+    assert_eq!(
+        bundle.receipt().advisory().project.as_deref(),
+        Some("main.tex")
+    );
+    assert_eq!(bundle.check().unwrap(), 1);
+    assert_eq!(
+        bundle.share("main.tex").unwrap().bytes,
+        b"\\documentclass{article}\n"
+    );
+
+    folder.write(".draftstamp", b"project = \"paper\"\n");
+    let bundle = Bundle::create(
+        &net,
+        &folder.path().join("main.tex"),
+        &StampOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        bundle.receipt().advisory().project.as_deref(),
+        Some("paper"),
+        "the file's folder settings"
+    );
+}

@@ -19,8 +19,10 @@ mod query;
 mod vault;
 
 pub use bundle::{Bundle, Shared, StampOptions, Verified};
+pub use config::{SETTINGS_FILE, Settings, default_project};
 pub use error::Error;
-pub use id::StampId;
+pub use id::{StampId, iso_time};
+pub use opentimestamps_lite::Error as OtsError;
 pub use opentimestamps_lite::{Http, Proof, Response, Status, Step};
 pub use query::{Found, StampInfo, find, history};
 pub use vault::{LocalVault, Vault};

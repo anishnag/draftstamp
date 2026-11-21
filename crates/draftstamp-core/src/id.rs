@@ -54,7 +54,7 @@ impl FromStr for StampId {
 }
 
 /// ISO 8601 UTC time, e.g. `2026-11-21T14:03:12Z`.
-pub(crate) fn iso_time(unix_seconds: u64) -> String {
+pub fn iso_time(unix_seconds: u64) -> String {
     let (y, mo, d, h, mi, s) = utc(unix_seconds);
     format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
 }
