@@ -184,3 +184,37 @@ fn ignore_file_leaves_out_matching_files() {
         "ignored files left out; the ignore file itself is stamped"
     );
 }
+
+#[test]
+fn project_comes_from_the_draftstamp_file() {
+    let net = Network::default();
+    let folder = project();
+    folder.write(
+        ".draftstamp",
+        b"# DraftStamp settings\nproject = \"riemann-draft\"\n",
+    );
+    let bundle = Bundle::create(&net, folder.path(), &StampOptions::default()).unwrap();
+    assert_eq!(
+        bundle.receipt().advisory().project.as_deref(),
+        Some("riemann-draft")
+    );
+    assert!(
+        bundle
+            .receipt()
+            .committed()
+            .leaves()
+            .iter()
+            .all(|l| l.path != ".draftstamp"),
+        "the settings file is never stamped"
+    );
+    let opts = StampOptions {
+        label: None,
+        project: Some("override".into()),
+    };
+    let bundle = Bundle::create(&net, folder.path(), &opts).unwrap();
+    assert_eq!(
+        bundle.receipt().advisory().project.as_deref(),
+        Some("override"),
+        "an explicit option wins"
+    );
+}

@@ -578,6 +578,10 @@
           "bytes_hex": "7b7d"
         },
         {
+          "path": ".draftstamp",
+          "bytes_hex": "70726f6a656374203d20227269656d616e6e2d6472616674220a"
+        },
+        {
           "path": ".gitignore",
           "bytes_hex": "2a2e6175780a"
         }
@@ -609,6 +613,7 @@
         "commitment": "c007564e790284535f2f078971cf956be43b90b5fb8fd6675d192b3ca9ae8af6",
         "skipped": [
           ".DS_Store",
+          ".draftstamp",
           ".draftstamp/old.receipt.json",
           ".git/HEAD",
           "__MACOSX/._main.tex",

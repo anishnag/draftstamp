@@ -18,6 +18,7 @@ use crate::commitment::tree::{
     NODE_PREFIX_BYTES, Side, audit_path, commitment_prefix, leaf_hash, leaf_prefix,
 };
 use crate::commitment::{Advisory, Receipt};
+use crate::config::Config;
 use crate::id::{StampId, iso_time};
 use crate::ignore::{IGNORE_FILE, Ignore};
 
@@ -29,7 +30,7 @@ const SKIPPED_DIRS: [&str; 3] = [".git", ".draftstamp", "__MACOSX"];
 pub struct StampOptions {
     /// A note about this draft.
     pub label: Option<String>,
-    /// The project tag. Defaults to the stamped folder's name.
+    /// The project tag. Defaults to `project` in the folder's `.draftstamp`, then the folder's name.
     pub project: Option<String>,
 }
 
@@ -76,14 +77,17 @@ impl Bundle {
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
         let id = StampId::new(now, &commitment);
-        let project = opts.project.clone().or_else(|| {
-            folder
-                .canonicalize()
-                .ok()?
-                .file_name()?
-                .to_str()
-                .map(str::to_owned)
-        });
+        let project = match &opts.project {
+            Some(p) => Some(p.clone()),
+            None => Config::load(folder)?.project.or_else(|| {
+                folder
+                    .canonicalize()
+                    .ok()?
+                    .file_name()?
+                    .to_str()
+                    .map(str::to_owned)
+            }),
+        };
         let advisory = Advisory {
             id: Some(id.to_string()),
             created_at: Some(iso_time(now)),

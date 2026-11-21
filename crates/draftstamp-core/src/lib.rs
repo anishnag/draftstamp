@@ -11,6 +11,7 @@
 
 mod bundle;
 pub mod commitment;
+mod config;
 mod error;
 mod id;
 mod ignore;

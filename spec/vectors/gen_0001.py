@@ -13,7 +13,7 @@ import unicodedata
 
 MAX_PATH_BYTES = 4096
 JUNK_DIRS = {".git", ".draftstamp", "__MACOSX"}
-JUNK_FILES = {".DS_Store", "Thumbs.db", "desktop.ini"}
+JUNK_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".draftstamp"}
 
 
 class VectorError(Exception):
@@ -126,6 +126,7 @@ CASES = [
         (".git/HEAD", b"ref: refs/heads/main\n"),
         ("__MACOSX/._main.tex", b"junk"),
         (".draftstamp/old.receipt.json", b"{}"),
+        (".draftstamp", b'project = "riemann-draft"\n'),
         (".gitignore", b"*.aux\n"),
     ]),
     ("error-parent-segment", [("../secret.tex", b"x")]),

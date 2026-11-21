@@ -11,7 +11,7 @@ pub(crate) const MAX_PATH_BYTES: usize = 4096;
 const JUNK_DIRS: &[&str] = &[".git", ".draftstamp", "__MACOSX"];
 
 /// File names skipped wherever they appear.
-const JUNK_FILES: &[&str] = &[".DS_Store", "Thumbs.db", "desktop.ini"];
+const JUNK_FILES: &[&str] = &[".DS_Store", "Thumbs.db", "desktop.ini", ".draftstamp"];
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Canonical {
