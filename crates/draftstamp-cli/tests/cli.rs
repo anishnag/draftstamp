@@ -320,3 +320,69 @@ fn usage() {
     assert_eq!(r.code, 1);
     assert!(r.err.contains("No vault"), "{}", r.err);
 }
+
+#[test]
+fn share_folders_and_zips() {
+    let net = Network::default();
+    let (folder, vault, out) = (project(), TempDir::new(), TempDir::new());
+    folder.write("sections/method.tex", b"\\section{Method}\n");
+    let (cwd, v) = (folder.path(), vault.path());
+    ds(&net, cwd, v, &["stamp"]);
+
+    let dir = out.path().join("loose");
+    let r = ds(
+        &net,
+        cwd,
+        v,
+        &["share", "sections/", "-o", dir.to_str().unwrap()],
+    );
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(
+        r.out.starts_with("Wrote 2 files and their .ots into"),
+        "{}",
+        r.out
+    );
+    for f in [
+        "sections/intro.tex",
+        "sections/intro.tex.ots",
+        "sections/method.tex",
+        "sections/method.tex.ots",
+    ] {
+        assert!(dir.join(f).is_file(), "{f}");
+    }
+    assert!(!dir.join("main.tex").exists());
+
+    let zip = out.path().join("reviewer.zip");
+    let r = ds(
+        &net,
+        cwd,
+        v,
+        &[
+            "share",
+            "sections",
+            "main.tex",
+            "--zip",
+            zip.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(
+        r.out
+            .contains("3 files, each with its own .ots, and a README"),
+        "{}",
+        r.out
+    );
+    assert!(zip.is_file());
+    assert_eq!(ds(&net, cwd, v, &["share", "nowhere/"]).code, 1);
+    assert_eq!(
+        ds(
+            &net,
+            cwd,
+            v,
+            &["share", "main.tex", "-o", "x", "--zip", "y.zip"]
+        )
+        .code,
+        2,
+        "-o or --zip"
+    );
+}

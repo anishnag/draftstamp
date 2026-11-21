@@ -23,7 +23,7 @@ use draftstamp_core::{
 pub struct Context<'a> {
     /// Relative paths are resolved against this.
     pub cwd: PathBuf,
-    /// The vault used without `--vault` (`$DRAFTSTAMP_VAULT`, then `~/draftstamp`).
+    /// The vault used without `--vault` (`$DRAFTSTAMP_VAULT`, then `~/.dsvault`).
     pub default_vault: PathBuf,
     /// Results.
     pub out: &'a mut dyn Write,
@@ -38,7 +38,7 @@ pub struct Context<'a> {
     about = "Timestamp your drafts in Bitcoin and keep each one with its proof."
 )]
 struct Cli {
-    /// The vault folder [default: $DRAFTSTAMP_VAULT, then ~/draftstamp]
+    /// The vault folder [default: $DRAFTSTAMP_VAULT, then ~/.dsvault]
     #[arg(long, global = true, value_name = "DIR")]
     vault: Option<PathBuf>,
     #[command(subcommand)]
@@ -93,16 +93,20 @@ enum Command {
         /// A stamp id, a unique prefix, or its 6-character ending [default: newest of this project]
         stamp: Option<String>,
     },
-    /// Write one file from a stamp, with its own .ots proof
+    /// Write files or folders from a stamp, each file with its own .ots proof
     Share {
-        /// The file's path inside the stamp, e.g. chapters/chapter3.tex
-        path: String,
-        /// Which stamp [default: the newest of this project containing the file]
+        /// Paths inside the stamp: files (chapters/chapter3.tex) or folders (chapters/)
+        #[arg(required = true)]
+        paths: Vec<String>,
+        /// Which stamp [default: the newest of this project containing them]
         #[arg(long)]
         stamp: Option<String>,
         /// Folder to write into [default: the current folder]
-        #[arg(short = 'o', long = "out", value_name = "DIR")]
+        #[arg(short = 'o', long = "out", value_name = "DIR", conflicts_with = "zip")]
         out: Option<PathBuf>,
+        /// Write one zip instead: the files, their .ots and a README
+        #[arg(long, value_name = "FILE")]
+        zip: Option<PathBuf>,
     },
     /// Write one zip with everything, each file with its own .ots proof
     Export {
@@ -232,7 +236,12 @@ impl<H: Http> App<'_, H> {
             Command::Find { file } => self.find(&file),
             Command::Check { stamp } => self.check(stamp),
             Command::Verify { stamp } => self.verify(stamp),
-            Command::Share { path, stamp, out } => self.share(&path, stamp, out),
+            Command::Share {
+                paths,
+                stamp,
+                out,
+                zip,
+            } => self.share(&paths, stamp, out, zip),
             Command::Export { stamp, out } => self.export(stamp, out),
         }
     }
@@ -489,8 +498,14 @@ impl<H: Http> App<'_, H> {
         }
     }
 
-    fn share(&mut self, path: &str, reference: Option<String>, out: Option<PathBuf>) -> Done {
-        let path = path.trim_start_matches("./");
+    fn share(
+        &mut self,
+        paths: &[String],
+        reference: Option<String>,
+        out: Option<PathBuf>,
+        zip: Option<PathBuf>,
+    ) -> Done {
+        let paths: Vec<&str> = paths.iter().map(String::as_str).collect();
         let vault = self.vault()?;
         let id = match reference {
             Some(r) => self.resolve(&vault, Some(&r))?,
@@ -498,21 +513,16 @@ impl<H: Http> App<'_, H> {
                 let project = self.current_project()?;
                 let mut newest = None;
                 for s in history(&vault, project.as_deref())? {
-                    if vault
-                        .receipt(&s.id)?
-                        .committed()
-                        .leaves()
-                        .iter()
-                        .any(|l| l.path == path)
-                    {
+                    if vault.receipt(&s.id)?.select(&paths).is_ok() {
                         newest = Some(s.id);
                         break;
                     }
                 }
                 newest.ok_or_else(|| {
                     fail(format!(
-                        "No stamp of {} contains {path}. Use the path as `draftstamp find` shows it, or --stamp.",
-                        project.map_or("this project".to_owned(), |p| format!("\"{p}\""))
+                        "No stamp of {} contains {}. Use paths as `draftstamp find` shows them, or --stamp.",
+                        project.map_or("this project".to_owned(), |p| format!("\"{p}\"")),
+                        paths.join(", ")
                     ))
                 })?
             }
@@ -528,41 +538,94 @@ impl<H: Http> App<'_, H> {
                 )),
             }
         }
-        let shared = bundle.share(path)?;
-        let dir = out.map_or_else(|| self.cwd.to_path_buf(), |o| self.cwd.join(o));
-        fs::create_dir_all(&dir)?;
-        let name = path.rsplit('/').next().unwrap_or(path);
-        let file_out = dir.join(name);
-        let ots_out = dir.join(format!("{name}.ots"));
-        if ots_out.exists() {
-            return Err(fail(format!(
-                "{} already exists; choose another folder with -o.",
-                ots_out.display()
-            )));
-        }
-        // The file may already be here (sharing from the project folder); only identical bytes.
-        let wrote = match fs::read(&file_out) {
-            Ok(existing) if existing == shared.bytes => format!("Wrote {name}.ots"),
-            Ok(_) => {
-                return Err(fail(format!(
-                    "{} already exists with different contents; choose another folder with -o.",
-                    file_out.display()
-                )));
+        let pending = bundle.proof().status() == Status::Pending;
+
+        if let Some(zip) = zip {
+            let zip = self.cwd.join(zip);
+            if zip.exists() {
+                return Err(fail(format!("{} already exists.", zip.display())));
             }
-            Err(_) => {
-                fs::write(&file_out, &shared.bytes)?;
-                format!("Wrote {name} and {name}.ots")
+            let files = bundle.share_zip(&paths, &zip)?;
+            self.say(format!(
+                "Wrote {}: {}, each with its own .ots, and a README, from stamp {id}.",
+                zip.display(),
+                count(files, "file")
+            ));
+            self.share_footer(pending, "<file>");
+            return Ok(());
+        }
+
+        let selected = bundle.select(&paths)?;
+        let dir = out.map_or_else(|| self.cwd.to_path_buf(), |o| self.cwd.join(o));
+        // One file is written by name; several keep their folders.
+        let target = |path: &str| -> PathBuf {
+            if selected.len() == 1 {
+                dir.join(path.rsplit('/').next().unwrap_or(path))
+            } else {
+                dir.join(path)
             }
         };
-        fs::write(&ots_out, shared.proof.to_bytes())?;
-        self.say(format!("{wrote} from stamp {id}."));
-        if shared.proof.status() == Status::Pending {
-            self.say("The proof is still pending: the recipient's `ots verify` completes it once Bitcoin confirms, or share again after `draftstamp upgrade`.");
+        let mut shared = Vec::new();
+        for path in &selected {
+            let file = bundle.share(path)?;
+            let (file_out, ots_out) = (target(path), target(&format!("{path}.ots")));
+            if ots_out.exists() {
+                return Err(fail(format!(
+                    "{} already exists; choose another folder with -o.",
+                    ots_out.display()
+                )));
+            }
+            // The file may already be here (sharing from the project folder); only identical bytes.
+            match fs::read(&file_out) {
+                Ok(existing) if existing != file.bytes => {
+                    return Err(fail(format!(
+                        "{} already exists with different contents; choose another folder with -o.",
+                        file_out.display()
+                    )));
+                }
+                Ok(_) => shared.push((file, file_out, ots_out, false)),
+                Err(_) => shared.push((file, file_out, ots_out, true)),
+            }
+        }
+        for (file, file_out, ots_out, write_file) in &shared {
+            if let Some(parent) = file_out.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            if *write_file {
+                fs::write(file_out, &file.bytes)?;
+            }
+            fs::write(ots_out, file.proof.to_bytes())?;
+        }
+        if let [(_, _, _, write_file)] = shared.as_slice() {
+            let name = selected[0].rsplit('/').next().unwrap_or(&selected[0]);
+            let wrote = if *write_file {
+                format!("Wrote {name} and {name}.ots")
+            } else {
+                format!("Wrote {name}.ots")
+            };
+            self.say(format!("{wrote} from stamp {id}."));
+            self.share_footer(pending, name);
+        } else {
+            self.say(format!(
+                "Wrote {} and their .ots into {} from stamp {id}:",
+                count(selected.len(), "file"),
+                dir.display()
+            ));
+            for path in &selected {
+                self.say(format!("  {path}"));
+            }
+            self.share_footer(pending, "<file>");
+        }
+        Ok(())
+    }
+
+    fn share_footer(&mut self, pending: bool, name: &str) {
+        if pending {
+            self.say("The proofs are still pending: the recipient's `ots verify` completes them once Bitcoin confirms, or share again after `draftstamp upgrade`.");
         }
         self.say(format!(
             "Anyone can check it with: ots verify -f {name} {name}.ots"
         ));
-        Ok(())
     }
 
     fn export(&mut self, reference: Option<String>, out: Option<PathBuf>) -> Done {

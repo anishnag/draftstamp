@@ -100,6 +100,37 @@ pub struct Advisory {
 }
 
 impl Receipt {
+    /// The file paths selected by `paths`: a file's path, a folder's path (with or without a
+    /// trailing `/`, every file under it), or `.` (every file). In tree order, without repeats;
+    /// a path that selects nothing is an error.
+    pub fn select(&self, paths: &[&str]) -> Result<Vec<String>, Error> {
+        let leaves = self.committed().leaves();
+        let mut chosen = vec![false; leaves.len()];
+        for raw in paths {
+            let path = raw.trim_start_matches("./").trim_end_matches('/');
+            let mut any = false;
+            for (i, leaf) in leaves.iter().enumerate() {
+                let under = leaf
+                    .path
+                    .strip_prefix(path)
+                    .is_some_and(|rest| rest.starts_with('/'));
+                if path.is_empty() || path == "." || leaf.path == path || under {
+                    chosen[i] = true;
+                    any = true;
+                }
+            }
+            if !any {
+                return Err(Error::NotFound(format!("{raw} in this stamp")));
+            }
+        }
+        Ok(leaves
+            .iter()
+            .zip(chosen)
+            .filter(|(_, c)| *c)
+            .map(|(l, _)| l.path.clone())
+            .collect())
+    }
+
     /// Wraps committed data and advisory metadata into a receipt.
     pub fn new(committed: Committed, advisory: Advisory) -> Self {
         Receipt {

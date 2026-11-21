@@ -259,3 +259,86 @@ fn a_single_file_is_a_one_file_stamp() {
         "the file's folder settings"
     );
 }
+
+#[test]
+fn select_and_share_zip() {
+    use sha2::Digest;
+    use std::io::Read;
+    let mut net = Network::default();
+    let folder = project();
+    folder.write("sections/method.tex", b"\\section{Method}\n");
+    let mut bundle = Bundle::create(&net, folder.path(), &StampOptions::default()).unwrap();
+    assert_eq!(
+        bundle.select(&["sections/"]).unwrap(),
+        ["sections/intro.tex", "sections/method.tex"]
+    );
+    assert_eq!(
+        bundle
+            .select(&["sections", "main.tex", "./main.tex"])
+            .unwrap()
+            .len(),
+        3,
+        "no repeats"
+    );
+    assert_eq!(bundle.select(&["."]).unwrap().len(), 4);
+    assert!(
+        bundle.select(&["sect"]).is_err(),
+        "a prefix of a name is not a folder"
+    );
+    assert!(matches!(
+        bundle.select(&["missing/"]),
+        Err(Error::NotFound(_))
+    ));
+
+    net.anchored = true;
+    bundle.upgrade(&net).unwrap();
+    let out = TempDir::new();
+    let zip_path = out.path().join("shared.zip");
+    assert_eq!(bundle.share_zip(&["sections"], &zip_path).unwrap(), 2);
+    let mut archive = zip::ZipArchive::new(Cursor::new(std::fs::read(&zip_path).unwrap())).unwrap();
+    let mut names: Vec<String> = (0..archive.len())
+        .map(|i| archive.by_index(i).unwrap().name().unwrap().into_owned())
+        .collect();
+    names.sort();
+    let id = bundle.id();
+    let expected: Vec<String> = [
+        "README.txt",
+        "sections/intro.tex",
+        "sections/intro.tex.ots",
+        "sections/method.tex",
+        "sections/method.tex.ots",
+    ]
+    .iter()
+    .map(|n| format!("{id}/{n}"))
+    .collect();
+    assert_eq!(
+        names, expected,
+        "only the selection: no receipt, snapshot or stamp proof"
+    );
+
+    let mut ots = Vec::new();
+    archive
+        .by_name(&format!("{id}/sections/method.tex.ots"))
+        .unwrap()
+        .read_to_end(&mut ots)
+        .unwrap();
+    let mut proof = draftstamp_core::Proof::from_bytes(&ots).unwrap();
+    assert_eq!(
+        proof.digest(),
+        <[u8; 32]>::from(sha2::Sha256::digest(b"\\section{Method}\n"))
+    );
+    assert!(matches!(
+        opentimestamps_lite::upgrade(&net, &mut proof).unwrap(),
+        Status::Anchored { .. }
+    ));
+    let mut readme = String::new();
+    archive
+        .by_name(&format!("{id}/README.txt"))
+        .unwrap()
+        .read_to_string(&mut readme)
+        .unwrap();
+    assert!(
+        readme.contains("  sections/method.tex\n") && !readme.contains("main.tex"),
+        "{readme}"
+    );
+}
