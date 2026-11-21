@@ -13,6 +13,7 @@ mod bundle;
 pub mod commitment;
 mod error;
 mod id;
+mod ignore;
 mod query;
 mod vault;
 

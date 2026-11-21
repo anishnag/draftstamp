@@ -84,6 +84,7 @@ fn export_holds_the_bundle_and_every_file_with_its_proof() {
     names.sort();
     let id = bundle.id();
     let expected: Vec<String> = [
+        "README.txt",
         "files/figures/plot.png",
         "files/figures/plot.png.ots",
         "files/main.tex",
@@ -155,4 +156,31 @@ fn every_shared_file_proves_itself_to_bitcoin() {
         bundle.share("missing.tex"),
         Err(Error::NotFound(_))
     ));
+}
+
+#[test]
+fn ignore_file_leaves_out_matching_files() {
+    let net = Network::default();
+    let folder = project();
+    folder.write("main.aux", b"build output");
+    folder.write("build/out.pdf", b"build output");
+    folder.write(".draftstampignore", b"# LaTeX outputs\n*.aux\nbuild/\n");
+    let bundle = Bundle::create(&net, folder.path(), &StampOptions::default()).unwrap();
+    let paths: Vec<&str> = bundle
+        .receipt()
+        .committed()
+        .leaves()
+        .iter()
+        .map(|l| l.path.as_str())
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            ".draftstampignore",
+            "figures/plot.png",
+            "main.tex",
+            "sections/intro.tex"
+        ],
+        "ignored files left out; the ignore file itself is stamped"
+    );
 }

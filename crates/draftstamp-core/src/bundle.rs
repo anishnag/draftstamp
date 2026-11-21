@@ -19,6 +19,7 @@ use crate::commitment::tree::{
 };
 use crate::commitment::{Advisory, Receipt};
 use crate::id::{StampId, iso_time};
+use crate::ignore::{IGNORE_FILE, Ignore};
 
 /// Folder names never descended into.
 const SKIPPED_DIRS: [&str; 3] = [".git", ".draftstamp", "__MACOSX"];
@@ -239,6 +240,7 @@ impl Bundle {
             .compression_method(CompressionMethod::Stored)
             .large_file(true);
         let mut entries = vec![
+            ("README.txt".to_owned(), self.readme().into_bytes()),
             ("snapshot.zip".to_owned(), self.snapshot.clone()),
             (
                 "receipt.json".to_owned(),
@@ -264,6 +266,38 @@ impl Bundle {
         Ok(())
     }
 
+    /// Plain-language instructions for whoever receives an export.
+    fn readme(&self) -> String {
+        let advisory = self.receipt.advisory();
+        let mut about = format!("Stamp {}", self.id);
+        if let Some(created) = &advisory.created_at {
+            about.push_str(&format!(", made {created}"));
+        }
+        if let Some(project) = &advisory.project {
+            about.push_str(&format!(", project \"{project}\""));
+        }
+        if let Some(label) = &advisory.label {
+            about.push_str(&format!(", labelled \"{label}\""));
+        }
+        format!(
+            "{about}. {} file(s).\n\
+             \n\
+             What this is\n\
+             These files were timestamped in Bitcoin using OpenTimestamps. Each file in files/ has\n\
+             a matching .ots proof showing that this exact file existed no later than the date of a\n\
+             specific Bitcoin block.\n\
+             \n\
+             How to check a file yourself\n\
+             1. Install the official OpenTimestamps client: https://github.com/opentimestamps/opentimestamps-client\n\
+             2. Run:  ots verify -f files/<name> files/<name>.ots\n\
+             It prints the Bitcoin block and date. If the file has been changed in any way, it fails.\n\
+             \n\
+             No DraftStamp software is needed. The other files here (snapshot.zip, receipt.json,\n\
+             proof.ots) are the original stamp, kept for completeness.\n",
+            self.receipt.committed().leaves().len()
+        )
+    }
+
     /// This stamp's id.
     pub fn id(&self) -> &StampId {
         &self.id
@@ -287,6 +321,11 @@ impl Bundle {
 /// Every regular file under `folder`, with `/`-separated relative paths. Symlinks are skipped;
 /// skipped folders are never entered. Junk files are dropped later, by canonicalization.
 fn read_folder(folder: &Path) -> Result<Vec<File>, Error> {
+    let ignore = match fs::read_to_string(folder.join(IGNORE_FILE)) {
+        Ok(text) => Ignore::parse(&text),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ignore::default(),
+        Err(e) => return Err(e.into()),
+    };
     let mut files = Vec::new();
     let mut stack = vec![(folder.to_path_buf(), String::new())];
     while let Some((dir, prefix)) = stack.pop() {
@@ -302,10 +341,10 @@ fn read_folder(folder: &Path) -> Result<Vec<File>, Error> {
             let kind = entry.file_type()?;
             let rel = format!("{prefix}{name}");
             if kind.is_dir() {
-                if !SKIPPED_DIRS.contains(&name.as_str()) {
+                if !SKIPPED_DIRS.contains(&name.as_str()) && !ignore.matches(&rel, true) {
                     stack.push((entry.path(), format!("{rel}/")));
                 }
-            } else if kind.is_file() {
+            } else if kind.is_file() && !ignore.matches(&rel, false) {
                 files.push(File {
                     path: rel,
                     bytes: fs::read(entry.path())?,
