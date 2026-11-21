@@ -12,8 +12,8 @@ fn main() -> ExitCode {
     };
     let default_vault = std::env::var_os("DRAFTSTAMP_VAULT")
         .map(PathBuf::from)
-        .or_else(|| std::env::home_dir().map(|h| h.join("draftstamp")))
-        .unwrap_or_else(|| cwd.join("draftstamp"));
+        .or_else(|| std::env::home_dir().map(|h| h.join(".dsvault")))
+        .unwrap_or_else(|| cwd.join(".dsvault"));
     let mut ctx = Context {
         cwd,
         default_vault,

@@ -23,7 +23,7 @@ use draftstamp_core::{
 pub struct Context<'a> {
     /// Relative paths are resolved against this.
     pub cwd: PathBuf,
-    /// The vault used without `--vault` (`$DRAFTSTAMP_VAULT`, then `~/draftstamp`).
+    /// The vault used without `--vault` (`$DRAFTSTAMP_VAULT`, then `~/.dsvault`).
     pub default_vault: PathBuf,
     /// Results.
     pub out: &'a mut dyn Write,
@@ -38,7 +38,7 @@ pub struct Context<'a> {
     about = "Timestamp your drafts in Bitcoin and keep each one with its proof."
 )]
 struct Cli {
-    /// The vault folder [default: $DRAFTSTAMP_VAULT, then ~/draftstamp]
+    /// The vault folder [default: $DRAFTSTAMP_VAULT, then ~/.dsvault]
     #[arg(long, global = true, value_name = "DIR")]
     vault: Option<PathBuf>,
     #[command(subcommand)]
