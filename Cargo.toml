@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/draftstamp-core", "crates/opentimestamps-lite"]
+members = ["crates/draftstamp-cli", "crates/draftstamp-core", "crates/opentimestamps-lite"]
 
 [workspace.package]
 edition = "2024"

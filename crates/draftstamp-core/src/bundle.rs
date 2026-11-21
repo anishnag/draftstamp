@@ -18,7 +18,7 @@ use crate::commitment::tree::{
     NODE_PREFIX_BYTES, Side, audit_path, commitment_prefix, leaf_hash, leaf_prefix,
 };
 use crate::commitment::{Advisory, Receipt};
-use crate::config::Config;
+use crate::config::default_project;
 use crate::id::{StampId, iso_time};
 use crate::ignore::{IGNORE_FILE, Ignore};
 
@@ -30,7 +30,7 @@ const SKIPPED_DIRS: [&str; 3] = [".git", ".draftstamp", "__MACOSX"];
 pub struct StampOptions {
     /// A note about this draft.
     pub label: Option<String>,
-    /// The project tag. Defaults to `project` in the folder's `.draftstamp`, then the folder's name.
+    /// The project tag. Defaults to [`default_project`](crate::default_project).
     pub project: Option<String>,
 }
 
@@ -67,9 +67,14 @@ pub struct Bundle {
 }
 
 impl Bundle {
-    /// Commits every file in `folder`, timestamps the commitment, and returns the new bundle.
-    pub fn create(http: &impl Http, folder: &Path, opts: &StampOptions) -> Result<Bundle, Error> {
-        let files = read_folder(folder)?;
+    /// Commits every file in the folder at `path` (or the single file at `path`), timestamps the
+    /// commitment, and returns the new bundle.
+    pub fn create(http: &impl Http, path: &Path, opts: &StampOptions) -> Result<Bundle, Error> {
+        let files = if path.is_dir() {
+            read_folder(path)?
+        } else {
+            read_one_file(path)?
+        };
         let stamped = commit(&files)?;
         let commitment = stamped.committed.commitment();
         let proof = opentimestamps_lite::stamp(http, commitment.0)?;
@@ -79,14 +84,7 @@ impl Bundle {
         let id = StampId::new(now, &commitment);
         let project = match &opts.project {
             Some(p) => Some(p.clone()),
-            None => Config::load(folder)?.project.or_else(|| {
-                folder
-                    .canonicalize()
-                    .ok()?
-                    .file_name()?
-                    .to_str()
-                    .map(str::to_owned)
-            }),
+            None => default_project(path)?,
         };
         let advisory = Advisory {
             id: Some(id.to_string()),
@@ -126,14 +124,16 @@ impl Bundle {
     /// Re-hashes every file in the snapshot, checks them against the receipt, checks the proof is
     /// for this commitment, then checks the proof against Bitcoin. The bundle is not modified.
     pub fn verify(&self, http: &impl Http) -> Result<Verified, Error> {
-        let files = self.check_offline()?;
+        let files = self.check()?;
         let mut proof = self.proof.clone();
         let status = opentimestamps_lite::upgrade(http, &mut proof)?;
         Ok(Verified { files, status })
     }
 
     /// Verification steps that need no network. Returns how many files matched.
-    pub(crate) fn check_offline(&self) -> Result<usize, Error> {
+    /// Offline: every file in the snapshot matches the receipt, the receipt's tree gives its
+    /// commitment, and the proof is for that commitment. Returns the number of files.
+    pub fn check(&self) -> Result<usize, Error> {
         let leaves = self.receipt.committed().leaves();
         let mut archive = ZipArchive::new(Cursor::new(&self.snapshot))?;
         let mut found: BTreeMap<String, ()> = BTreeMap::new();
@@ -324,6 +324,22 @@ impl Bundle {
 
 /// Every regular file under `folder`, with `/`-separated relative paths. Symlinks are skipped;
 /// skipped folders are never entered. Junk files are dropped later, by canonicalization.
+/// A single file named directly: a one-file stamp whose path is the file's name. The ignore
+/// file does not apply.
+fn read_one_file(file: &Path) -> Result<Vec<File>, Error> {
+    let name = file
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| Error::InvalidPath {
+            path: file.to_string_lossy().into_owned(),
+            reason: "not a valid UTF-8 file name",
+        })?;
+    Ok(vec![File {
+        path: name.to_owned(),
+        bytes: fs::read(file)?,
+    }])
+}
+
 fn read_folder(folder: &Path) -> Result<Vec<File>, Error> {
     let ignore = match fs::read_to_string(folder.join(IGNORE_FILE)) {
         Ok(text) => Ignore::parse(&text),

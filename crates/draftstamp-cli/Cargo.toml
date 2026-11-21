@@ -1,0 +1,20 @@
+[package]
+name = "draftstamp-cli"
+version = "0.1.0"
+description = "The draftstamp command: stamp drafts, keep them in a vault, share proofs."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "draftstamp"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.9", features = ["derive"] }
+draftstamp-core = { path = "../draftstamp-core" }
+ureq = "3.5.2"
+
+[dev-dependencies]
+opentimestamps-lite = { path = "../opentimestamps-lite" }
+sha2 = "0.10"
