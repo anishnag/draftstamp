@@ -40,6 +40,10 @@ Every stamp produces one self-contained folder in the vault. All three files are
 | `draftstamp-vault` | Files, through storage backends | Writing and reading bundles, finding which stamps contain a file, project history, exporting evidence | Next |
 | `draftstamp-cli` | Files and network | The commands; supplies native HTTP to ots | Next |
 
+There is no WebAssembly build: the CLI runs the engine natively, and the desktop app will call the same Rust code directly.
+
+**Website.** A static landing page that explains DraftStamp and links to the CLI download. It performs no stamping or verification and has no accounts or backend.
+
 `draftstamp-core` and `draftstamp-ots` never depend on each other. `draftstamp-vault` builds on both (it reads receipts and proofs), and the CLI, later the desktop app, sits on top. Anything built later never re-implements the format.
 
 ## Storage
