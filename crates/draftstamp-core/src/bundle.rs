@@ -270,6 +270,70 @@ impl Bundle {
         Ok(())
     }
 
+    /// The stamp's file paths selected by `paths`: a file's path, a folder's path (with or
+    /// without a trailing `/`, every file under it), or `.` (every file). In tree order, without
+    /// repeats; a path that selects nothing is an error.
+    pub fn select(&self, paths: &[&str]) -> Result<Vec<String>, Error> {
+        self.receipt.select(paths)
+    }
+
+    /// Writes one zip of the selected files and folders (see [`select`](Self::select)), each
+    /// file with its own proof beside it, folders preserved, and a `README.txt` listing them.
+    /// Never the receipt, snapshot or stamp proof, so unselected files stay hidden. Returns the
+    /// number of files.
+    pub fn share_zip(&self, paths: &[&str], out: &Path) -> Result<usize, Error> {
+        let selected = self.select(paths)?;
+        let leaves = self.receipt.committed().leaves();
+        let mut entries = vec![(
+            "README.txt".to_owned(),
+            self.share_readme(&selected).into_bytes(),
+        )];
+        for path in &selected {
+            let index = leaves
+                .iter()
+                .position(|l| &l.path == path)
+                .expect("selected from the leaves");
+            entries.push((path.clone(), self.snapshot_file(path)?));
+            entries.push((format!("{path}.ots"), self.file_proof(index)?.to_bytes()));
+        }
+        let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+        let stored = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            .large_file(true);
+        for (name, bytes) in entries {
+            zip.start_file(format!("{}/{name}", self.id), stored)?;
+            zip.write_all(&bytes)?;
+        }
+        fs::write(out, zip.finish()?.into_inner())?;
+        Ok(selected.len())
+    }
+
+    fn share_readme(&self, selected: &[String]) -> String {
+        let when = match self.proof.status() {
+            Status::Pending => "The proofs are still pending in Bitcoin; `ots verify` completes them once Bitcoin confirms (usually within a few hours of stamping).".to_owned(),
+            Status::Claimed { height } | Status::Anchored { height, .. } => {
+                format!("The proofs lead to Bitcoin block {height}.")
+            }
+        };
+        let list: String = selected.iter().map(|p| format!("  {p}\n")).collect();
+        format!(
+            "{} file(s) from DraftStamp stamp {}, each with its own OpenTimestamps proof:\n\
+             \n\
+             {list}\
+             \n\
+             Each proof shows that this exact file existed no later than the date of a Bitcoin\n\
+             block. {when} All of them lead to the same stamp, so they were stamped together.\n\
+             \n\
+             How to check a file yourself\n\
+             1. Install the official OpenTimestamps client: https://github.com/opentimestamps/opentimestamps-client\n\
+             2. Run:  ots verify -f <file> <file>.ots\n\
+             It prints the Bitcoin block and date. If the file has been changed in any way, it fails.\n\
+             No DraftStamp software is needed.\n",
+            selected.len(),
+            self.id
+        )
+    }
+
     /// Plain-language instructions for whoever receives an export.
     fn readme(&self) -> String {
         let advisory = self.receipt.advisory();
