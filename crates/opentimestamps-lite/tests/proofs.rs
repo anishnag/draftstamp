@@ -1,10 +1,6 @@
 //! Proofs built from real aggregator replies: round trips and hostile input.
 
-use std::future::Future;
-use std::pin::pin;
-use std::task::{Context, Poll, Waker};
-
-use draftstamp_ots::{Error, Http, Proof, Response, Status, stamp};
+use opentimestamps_lite::{Error, Http, Proof, Response, Status, stamp};
 
 const FIXTURES: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -16,13 +12,13 @@ const FIXTURES: &str = concat!(
 struct Recorded;
 
 impl Http for Recorded {
-    async fn get(&self, _: &str) -> Result<Response, Error> {
+    fn get(&self, _: &str) -> Result<Response, Error> {
         Ok(Response {
             status: 404,
             body: Vec::new(),
         })
     }
-    async fn post(&self, url: &str, _: &[u8]) -> Result<Response, Error> {
+    fn post(&self, url: &str, _: &[u8]) -> Result<Response, Error> {
         let host = url
             .trim_start_matches("https://")
             .trim_end_matches("/digest");
@@ -32,18 +28,8 @@ impl Http for Recorded {
     }
 }
 
-fn block_on<F: Future>(f: F) -> F::Output {
-    let mut f = pin!(f);
-    let mut cx = Context::from_waker(Waker::noop());
-    loop {
-        if let Poll::Ready(v) = f.as_mut().poll(&mut cx) {
-            return v;
-        }
-    }
-}
-
 fn real_proof() -> Proof {
-    block_on(stamp(&Recorded, [0x5a; 32])).unwrap()
+    stamp(&Recorded, [0x5a; 32]).unwrap()
 }
 
 #[test]
@@ -60,7 +46,6 @@ fn round_trip_and_status() {
     assert_eq!(again, proof);
     assert_eq!(again.to_bytes(), bytes);
     assert_eq!(proof.status(), Status::Pending);
-    assert_eq!(proof.calendars().len(), 4);
 }
 
 #[test]

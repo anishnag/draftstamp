@@ -10,12 +10,12 @@ const VERSION: u8 = 1;
 const SHA256_TAG: u8 = 0x08;
 
 /// Largest `.ots` file accepted.
-pub const MAX_PROOF_BYTES: usize = 64 * 1024;
+pub(crate) const MAX_PROOF_BYTES: usize = 64 * 1024;
 
-/// A standard OpenTimestamps proof whose digest is a DraftStamp commitment.
+/// A standard OpenTimestamps proof of a 32-byte SHA-256 digest.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proof {
-    commitment: [u8; 32],
+    digest: [u8; 32],
     tree: Node,
 }
 
@@ -39,18 +39,16 @@ pub enum Status {
     },
 }
 
-/// One calendar the stamp was submitted through, and the 44-byte message it filed the stamp under.
+/// A calendar promise: the calendar's base URL and the message it filed the stamp under.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CalendarEntry {
-    /// Calendar base URL, e.g. `https://alice.btc.calendar.opentimestamps.org`.
-    pub url: String,
-    /// The message at the pending attestation: the calendar's lookup key.
-    pub message: Vec<u8>,
+pub(crate) struct CalendarEntry {
+    pub(crate) url: String,
+    pub(crate) message: Vec<u8>,
 }
 
 impl Proof {
-    pub(crate) fn new(commitment: [u8; 32], tree: Node) -> Self {
-        Proof { commitment, tree }
+    pub(crate) fn new(digest: [u8; 32], tree: Node) -> Self {
+        Proof { digest, tree }
     }
 
     /// Reads a `.ots` file. Strict and bounded; never panics.
@@ -70,10 +68,10 @@ impl Proof {
         if hash_op != SHA256_TAG {
             return Err(Error::UnsupportedHashOp(hash_op));
         }
-        let commitment: [u8; 32] = r.read_exact(32)?.try_into().expect("32 bytes");
-        let tree = Node::read(&mut r, Some(&commitment))?;
+        let digest: [u8; 32] = r.read_exact(32)?.try_into().expect("32 bytes");
+        let tree = Node::read(&mut r, Some(&digest))?;
         r.finish()?;
-        Ok(Proof { commitment, tree })
+        Ok(Proof { digest, tree })
     }
 
     /// Writes the `.ots` file in canonical form, byte-identical to the official client.
@@ -82,14 +80,14 @@ impl Proof {
         out.extend_from_slice(MAGIC);
         out.push(VERSION);
         out.push(SHA256_TAG);
-        out.extend_from_slice(&self.commitment);
+        out.extend_from_slice(&self.digest);
         self.tree.write(&mut out);
         out
     }
 
-    /// The commitment this proof is about.
-    pub fn commitment(&self) -> [u8; 32] {
-        self.commitment
+    /// The digest this proof is about.
+    pub fn digest(&self) -> [u8; 32] {
+        self.digest
     }
 
     /// Status from the file alone, without any network check: `Pending` or `Claimed`.
@@ -100,29 +98,10 @@ impl Proof {
         }
     }
 
-    /// Every calendar the proof was submitted through, answered or not, sorted.
-    /// Stable for the proof's whole life, since upgrades never remove pending attestations.
-    pub fn calendars(&self) -> Vec<CalendarEntry> {
-        let mut out = Vec::new();
-        self.tree.walk(Some(&self.commitment), &mut |node, msg| {
-            for a in &node.attestations {
-                if let (Attestation::Pending { uri }, Some(m)) = (a, msg) {
-                    out.push(CalendarEntry {
-                        url: uri.clone(),
-                        message: m.to_vec(),
-                    });
-                }
-            }
-        });
-        out.sort();
-        out.dedup();
-        out
-    }
-
     /// Calendars whose promise has no Bitcoin attestation below it yet.
     pub(crate) fn unanswered(&self) -> Vec<CalendarEntry> {
         let mut out = Vec::new();
-        self.tree.walk(Some(&self.commitment), &mut |node, msg| {
+        self.tree.walk(Some(&self.digest), &mut |node, msg| {
             if let Some(m) = msg
                 && !node.has_bitcoin()
             {
@@ -142,11 +121,11 @@ impl Proof {
     }
 
     pub(crate) fn bitcoin_claims(&self) -> Vec<(u64, [u8; 32])> {
-        self.tree.bitcoin_claims(&self.commitment)
+        self.tree.bitcoin_claims(&self.digest)
     }
 
     pub(crate) fn graft(&mut self, message: &[u8], fragment: &Node) -> bool {
-        self.tree.graft(Some(&self.commitment), message, fragment)
+        self.tree.graft(Some(&self.digest), message, fragment)
     }
 }
 

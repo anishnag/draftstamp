@@ -1,4 +1,4 @@
-//! The only thing draftstamp-ots needs from a host.
+//! The only thing the library needs from its caller.
 
 use crate::Error;
 
@@ -11,15 +11,15 @@ pub struct Response {
     pub body: Vec<u8>,
 }
 
-/// HTTPS requests, supplied by the host: the browser's `fetch` in WebAssembly, a native
-/// client in the CLI, recorded replies in tests.
+/// Blocking HTTPS requests, supplied by the caller: a native client in the CLI or desktop
+/// app, recorded replies in tests.
 ///
+/// `Sync` because the library sends independent requests in parallel on scoped threads.
 /// Implementations should time out after about 5 seconds and report failures as
 /// [`Error::Http`]. Non-2xx responses are returned as `Ok`, not errors.
-#[allow(async_fn_in_trait)]
-pub trait Http {
+pub trait Http: Sync {
     /// `GET url`.
-    async fn get(&self, url: &str) -> Result<Response, Error>;
+    fn get(&self, url: &str) -> Result<Response, Error>;
     /// `POST url` with a raw binary body.
-    async fn post(&self, url: &str, body: &[u8]) -> Result<Response, Error>;
+    fn post(&self, url: &str, body: &[u8]) -> Result<Response, Error>;
 }

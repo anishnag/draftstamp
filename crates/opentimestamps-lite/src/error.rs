@@ -1,6 +1,6 @@
 use std::fmt;
 
-/// Everything that can go wrong in draftstamp-ots.
+/// Everything that can go wrong in opentimestamps-lite.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
@@ -37,13 +37,11 @@ pub enum Error {
         /// How many accepted.
         accepted: usize,
     },
-    /// A status link is malformed.
-    BadLink(&'static str),
     /// A block header does not contain the value the proof claims.
     HeaderMismatch,
     /// The operating system's random number generator failed.
     Random,
-    /// The host's HTTP implementation reported an error.
+    /// The caller's HTTP implementation reported an error.
     Http(String),
 }
 
@@ -66,7 +64,6 @@ impl Error {
             Error::BadUri => "bad_uri",
             Error::BadPayload => "bad_payload",
             Error::TooFewCalendars { .. } => "too_few_calendars",
-            Error::BadLink(_) => "bad_link",
             Error::HeaderMismatch => "header_mismatch",
             Error::Random => "random",
             Error::Http(_) => "http",
@@ -86,7 +83,6 @@ impl fmt::Display for Error {
                     "only {accepted} calendar(s) accepted the stamp; at least 2 are required"
                 )
             }
-            Error::BadLink(why) => write!(f, "invalid status link: {why}"),
             Error::Http(why) => write!(f, "network error: {why}"),
             other => f.write_str(other.code()),
         }

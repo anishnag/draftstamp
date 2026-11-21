@@ -1,12 +1,9 @@
-//! stamp, upgrade and link::status against a simulated network of aggregators, calendars and explorers.
+//! stamp and upgrade against a simulated network of aggregators, calendars and explorers.
 
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::future::Future;
-use std::pin::pin;
-use std::task::{Context, Poll, Waker};
+use std::sync::Mutex;
 
-use draftstamp_ots::{Error, Http, Proof, Response, Status, link, stamp, upgrade};
+use opentimestamps_lite::{Error, Http, Proof, Response, Status, stamp, upgrade};
 use sha2::{Digest, Sha256};
 
 const CALENDARS: [&str; 4] = [
@@ -34,7 +31,7 @@ struct Network {
     anchored: bool,
     explorers: Explorers,
     /// timestamp URL → calendar index and message, filled in as stamps are submitted
-    filed: RefCell<HashMap<String, (usize, Vec<u8>)>>,
+    filed: Mutex<HashMap<String, (usize, Vec<u8>)>>,
 }
 
 impl Network {
@@ -44,7 +41,7 @@ impl Network {
             garbage_from_first: false,
             anchored: false,
             explorers: Explorers::Agree,
-            filed: RefCell::default(),
+            filed: Mutex::default(),
         }
     }
 
@@ -52,7 +49,8 @@ impl Network {
         let i = (height.checked_sub(BASE_HEIGHT)?) as usize;
         let message = self
             .filed
-            .borrow()
+            .lock()
+            .unwrap()
             .values()
             .find(|(c, _)| *c == i)?
             .1
@@ -98,7 +96,7 @@ fn status(code: u16) -> Result<Response, Error> {
 }
 
 impl Http for Network {
-    async fn post(&self, url: &str, body: &[u8]) -> Result<Response, Error> {
+    fn post(&self, url: &str, body: &[u8]) -> Result<Response, Error> {
         let i = [
             "a.pool.opentimestamps.org",
             "b.pool.opentimestamps.org",
@@ -128,14 +126,15 @@ impl Http for Network {
         reply.extend_from_slice(&[uri.len() as u8 + 1, uri.len() as u8]);
         reply.extend_from_slice(uri.as_bytes());
         self.filed
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .insert(format!("{uri}/timestamp/{}", hex(&message)), (i, message));
         ok(reply)
     }
 
-    async fn get(&self, url: &str) -> Result<Response, Error> {
+    fn get(&self, url: &str) -> Result<Response, Error> {
         if url.contains("/timestamp/") {
-            let filed = self.filed.borrow();
+            let filed = self.filed.lock().unwrap();
             let Some((i, _)) = filed.get(url) else {
                 return status(404);
             };
@@ -185,49 +184,38 @@ fn varuint(mut n: u64) -> Vec<u8> {
     }
 }
 
-fn block_on<F: Future>(f: F) -> F::Output {
-    let mut f = pin!(f);
-    let mut cx = Context::from_waker(Waker::noop());
-    loop {
-        if let Poll::Ready(v) = f.as_mut().poll(&mut cx) {
-            return v;
-        }
-    }
+/// Calendar promises in a proof, counted from its bytes (pending attestation tags).
+fn promises(proof: &Proof) -> usize {
+    proof
+        .to_bytes()
+        .windows(8)
+        .filter(|w| *w == PENDING)
+        .count()
 }
 
 #[test]
 fn full_lifecycle() {
     let mut net = Network::new();
-    let commitment = [42u8; 32];
+    let digest = [42u8; 32];
 
-    let mut proof = block_on(stamp(&net, commitment)).unwrap();
-    assert_eq!(proof.commitment(), commitment);
+    let mut proof = stamp(&net, digest).unwrap();
+    assert_eq!(proof.digest(), digest);
     assert_eq!(proof.status(), Status::Pending);
-    assert_eq!(proof.calendars().len(), 4);
-    assert!(proof.calendars().iter().all(|c| c.message.len() == 44));
+    assert_eq!(promises(&proof), 4);
     assert_eq!(Proof::from_bytes(&proof.to_bytes()).unwrap(), proof);
-
-    let link_before = link::encode(&proof.calendars()).unwrap();
-    assert_eq!(
-        block_on(link::status(&net, &link_before)).unwrap(),
-        Status::Pending
-    );
 
     // Calendars not anchored yet: nothing changes.
     let before = proof.clone();
-    assert_eq!(
-        block_on(upgrade(&net, &mut proof)).unwrap(),
-        Status::Pending
-    );
+    assert_eq!(upgrade(&net, &mut proof).unwrap(), Status::Pending);
     assert_eq!(proof, before);
 
-    // Anchored: upgrade adds the Bitcoin paths and verifies from the commitment.
+    // Anchored: upgrade adds the Bitcoin paths and verifies from the digest.
     net.anchored = true;
     let anchored = Status::Anchored {
         height: BASE_HEIGHT,
         time: BASE_TIME,
     };
-    assert_eq!(block_on(upgrade(&net, &mut proof)).unwrap(), anchored);
+    assert_eq!(upgrade(&net, &mut proof).unwrap(), anchored);
     assert_eq!(
         proof.status(),
         Status::Claimed {
@@ -235,18 +223,12 @@ fn full_lifecycle() {
         },
         "offline status does not verify"
     );
+    assert_eq!(promises(&proof), 4, "pending attestations are kept");
     assert_eq!(Proof::from_bytes(&proof.to_bytes()).unwrap(), proof);
-
-    // The link is unchanged by the upgrade and now reports anchored.
-    assert_eq!(link::encode(&proof.calendars()).unwrap(), link_before);
-    assert_eq!(
-        block_on(link::status(&net, &link_before)).unwrap(),
-        anchored
-    );
 
     // Upgrading again adds nothing.
     let done = proof.clone();
-    assert_eq!(block_on(upgrade(&net, &mut proof)).unwrap(), anchored);
+    assert_eq!(upgrade(&net, &mut proof).unwrap(), anchored);
     assert_eq!(proof, done);
 }
 
@@ -255,19 +237,18 @@ fn needs_two_aggregators() {
     let mut net = Network::new();
     net.aggregators_up = 1;
     assert_eq!(
-        block_on(stamp(&net, [1; 32])),
+        stamp(&net, [1; 32]),
         Err(Error::TooFewCalendars { accepted: 1 })
     );
     net.aggregators_up = 2;
-    assert_eq!(block_on(stamp(&net, [1; 32])).unwrap().calendars().len(), 2);
+    assert_eq!(promises(&stamp(&net, [1; 32]).unwrap()), 2);
 }
 
 #[test]
 fn malformed_replies_are_ignored() {
     let mut net = Network::new();
     net.garbage_from_first = true;
-    let proof = block_on(stamp(&net, [2; 32])).unwrap();
-    assert_eq!(proof.calendars().len(), 3);
+    assert_eq!(promises(&stamp(&net, [2; 32]).unwrap()), 3);
 }
 
 #[test]
@@ -288,9 +269,9 @@ fn explorer_problems() {
         (Explorers::WrongRoot, Err(Error::HeaderMismatch)),
     ] {
         let mut net = Network::new();
-        let mut proof = block_on(stamp(&net, [3; 32])).unwrap();
+        let mut proof = stamp(&net, [3; 32]).unwrap();
         net.anchored = true;
         net.explorers = mode;
-        assert_eq!(block_on(upgrade(&net, &mut proof)), expected);
+        assert_eq!(upgrade(&net, &mut proof), expected);
     }
 }

@@ -1,0 +1,11 @@
+[package]
+name = "opentimestamps-lite"
+version = "0.1.0"
+description = "A small OpenTimestamps library: stamp a digest, upgrade and verify proofs against Bitcoin. No I/O; callers supply HTTP."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+getrandom = "0.2"
+sha2 = "0.10"

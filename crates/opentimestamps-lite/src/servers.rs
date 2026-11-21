@@ -1,4 +1,4 @@
-//! The public servers draftstamp-ots talks to.
+//! The public servers opentimestamps-lite talks to.
 
 /// Aggregators that accept new stamps (the official client's defaults).
 pub(crate) const AGGREGATORS: [&str; 4] = [
