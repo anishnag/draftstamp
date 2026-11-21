@@ -54,6 +54,13 @@ impl Network {
     }
 }
 
+impl Network {
+    /// The merkle root of the simulated block, in header byte order.
+    pub fn merkle_root(&self) -> Option<[u8; 32]> {
+        Some(self.header()?[36..68].try_into().unwrap())
+    }
+}
+
 fn block_hash(h: &[u8; 80]) -> String {
     let mut d = sha(&sha(h));
     d.reverse();
