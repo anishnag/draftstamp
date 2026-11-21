@@ -1,0 +1,16 @@
+[package]
+name = "draftstamp-core"
+version = "0.1.0"
+description = "The DraftStamp engine: commit a folder, stamp it, and keep bundles in a vault."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+opentimestamps-lite = { path = "../opentimestamps-lite" }
+getrandom = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+unicode-normalization = "0.1"
+zip = { version = "9.8.1", default-features = false, features = ["deflate"] }

@@ -275,3 +275,35 @@ fn explorer_problems() {
         assert_eq!(upgrade(&net, &mut proof), expected);
     }
 }
+
+#[test]
+fn from_steps_extends_a_proof() {
+    use opentimestamps_lite::Step;
+    use sha2::{Digest, Sha256};
+
+    // A file hash --prepend 0x01, sha256--> the stamped digest, then the stamp's proof.
+    let mut net = Network::new();
+    let file_hash = [9u8; 32];
+    let stamped: [u8; 32] = Sha256::digest([&[1u8][..], &file_hash].concat()).into();
+    let mut proof2 = stamp(&net, stamped).unwrap();
+    net.anchored = true;
+    upgrade(&net, &mut proof2).unwrap();
+    let steps = [Step::Prepend(vec![1]), Step::Sha256];
+    let derived = Proof::from_steps(file_hash, &steps, &proof2).unwrap();
+    assert_eq!(derived.digest(), file_hash);
+    assert_eq!(Proof::from_bytes(&derived.to_bytes()).unwrap(), derived);
+    let mut check = derived.clone();
+    assert!(
+        matches!(upgrade(&net, &mut check).unwrap(), Status::Anchored { .. }),
+        "replays through the steps to Bitcoin"
+    );
+
+    assert!(
+        Proof::from_steps(file_hash, &[Step::Sha256], &proof2).is_err(),
+        "steps must reach the proof's digest"
+    );
+    assert!(
+        Proof::from_steps(file_hash, &[Step::Append(vec![]), Step::Sha256], &proof2).is_err(),
+        "empty argument"
+    );
+}
