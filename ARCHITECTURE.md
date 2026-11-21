@@ -22,29 +22,34 @@ Every stamp produces one self-contained folder in the vault. All three files are
 ## Crates
 
 ```
-                    draftstamp-cli                   desktop app
-          stamp · log · find · export · verify       same engine, GUI
+       draftstamp-cli             draftstamp-desktop
+  stamp · log · find ·            same commands, GUI
+  export · verify
+              └────────────┬────────────┘
+                           ▼
+                    draftstamp-core
+           engine: files → commitment, receipts,
+           verification · vault: bundles, find,
+           history, export, storage backends
                            │
-         ┌─────────────────┼──────────────────┐
-         ▼                 ▼                  ▼
-  draftstamp-core    draftstamp-ots     draftstamp-vault
-  files → commitment commitment → .ots  bundles: save, list,
-  receipts, verify   stamp, upgrade,    find, export
-                     Bitcoin check      storage backends
+                           ▼
+                    draftstamp-ots
+           OpenTimestamps: stamp, upgrade,
+           check proofs against Bitcoin
 ```
 
 | Crate | I/O | Role |
 | --- | --- | --- |
-| `draftstamp-core` | None | Canonical paths, salted Merkle tree, commitment, receipts, file verification |
-| `draftstamp-ots` | None: network through an `Http` interface the host supplies | Stamping with OpenTimestamps calendars, upgrading, checking proofs against Bitcoin headers |
-| `draftstamp-vault` | Files, through storage backends | Writing and reading bundles, finding which stamps contain a file, project history, exporting evidence |
+| `draftstamp-ots` | None: network through an `Http` interface the caller supplies | A general OpenTimestamps library: stamping with the public calendars, upgrading, checking proofs against Bitcoin headers. Knows nothing about DraftStamp. |
+| `draftstamp-core` | Files, only in the vault's storage backends | The DraftStamp engine. The `commitment` modules turn files into a commitment and verify them (no I/O); the `vault` modules save and read bundles, find which stamps contain a file, show project history and export evidence. |
 | `draftstamp-cli` | Files and network | The commands; supplies native HTTP to ots |
+| `draftstamp-desktop` | Files and network | A desktop app (Tauri) on the same engine |
 
-There is no WebAssembly build: the CLI runs the engine natively, and the desktop app calls the same Rust code directly.
+Dependencies point down only: the front ends use `draftstamp-core`, which uses `draftstamp-ots`. `draftstamp-ots` stays independent of DraftStamp so others can use it on its own. Anything built later sits on top and never re-implements the format.
+
+There is no WebAssembly build: both front ends run the engine natively.
 
 **Website.** A static landing page that explains DraftStamp and links to the CLI download. It performs no stamping or verification and has no accounts or backend.
-
-`draftstamp-core` and `draftstamp-ots` never depend on each other. `draftstamp-vault` builds on both (it reads receipts and proofs), and the CLI and the desktop app sit on top. Anything built later never re-implements the format.
 
 ## Storage
 
