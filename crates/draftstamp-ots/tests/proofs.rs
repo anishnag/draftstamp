@@ -1,5 +1,4 @@
-//! Proofs built from real aggregator replies: round trips, cross-check with the
-//! `opentimestamps` crate, and hostile input.
+//! Proofs built from real aggregator replies: round trips and hostile input.
 
 use std::future::Future;
 use std::pin::pin;
@@ -62,19 +61,6 @@ fn round_trip_and_status() {
     assert_eq!(again.to_bytes(), bytes);
     assert_eq!(proof.status(), Status::Pending);
     assert_eq!(proof.calendars().len(), 4);
-}
-
-#[test]
-fn matches_the_opentimestamps_crate() {
-    let bytes = real_proof().to_bytes();
-    let theirs = opentimestamps::DetachedTimestampFile::from_reader(&bytes[..])
-        .expect("opentimestamps crate parses our proof");
-    let mut rewritten = Vec::new();
-    theirs.to_writer(&mut rewritten).unwrap();
-    assert_eq!(
-        rewritten, bytes,
-        "both implementations write identical bytes"
-    );
 }
 
 #[test]

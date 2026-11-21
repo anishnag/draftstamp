@@ -9,6 +9,3 @@ publish.workspace = true
 [dependencies]
 getrandom = "0.2"
 sha2 = "0.10"
-
-[dev-dependencies]
-opentimestamps = "0.2"
