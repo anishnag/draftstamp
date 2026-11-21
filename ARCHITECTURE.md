@@ -1,43 +1,59 @@
 # Architecture
 
-## Use cases
+## Goal
 
-| Use | Surface | Built on |
-| --- | --- | --- |
-| Upload files or folders (including an Overleaf source zip). Hashing runs in the browser; nothing is uploaded. | Website | `draftstamp-wasm` |
-| Stamp git repos (commit hooks, GitHub Actions), Overleaf projects through their git integration, or any local folder | CLI | `draftstamp-cli` |
+When you stamp a draft, DraftStamp keeps three things together: that exact version of your work, its receipt, and its Bitcoin proof. They stay in a vault you control, so years later you can show what you had and when, and anyone can verify it without DraftStamp.
+
+Stamping is deliberate and occasional ("save this draft"), not automatic on every change. The value is not the timestamp itself, which OpenTimestamps provides; it is that work and proof are never separated and are always easy to find.
+
+## The bundle
+
+Every stamp produces one self-contained folder in the vault. All three files are needed to prove anything.
+
+```
+<vault>/
+└── <project>/
+    └── <stamp id>/
+        ├── snapshot.zip     the exact stamped files
+        ├── receipt.json     file list and salts: turns the snapshot into the commitment
+        └── proof.ots        OpenTimestamps proof that the commitment existed before a Bitcoin block
+```
 
 ## Crates
 
 ```
-┌──────────────────────────┐            ┌──────────────────────────┐
-│ web/          TypeScript │            │ draftstamp-cli      Rust │
-│ picker, drop zone,       │            │ folder walk, git hook,   │
-│ unzip, calendar fetch    │            │ writes .draftstamp/      │
-└─────────────┬────────────┘            └─────────────┬────────────┘
-              │                                       │
-┌─────────────▼────────────┐                          │
-│ draftstamp-wasm     Rust │                          │
-└─────────────┬────────────┘                          │
-              └───────────────────┬───────────────────┘
-                                  │ both surfaces use both libraries
-              ┌───────────────────┴───────────────────┐
-┌─────────────▼────────────┐            ┌─────────────▼────────────┐
-│ draftstamp-core     Rust │            │ draftstamp-ots      Rust │
-│ format rules             │            │ proof format, status     │
-│ no I/O                   │            │ no I/O by default;       │
-└──────────────────────────┘            │ "client" feature adds    │
-                                        │ calendar HTTP (CLI only) │
-                                        └──────────────────────────┘
+                    draftstamp-cli                   desktop app (later)
+          stamp · log · find · export · verify       same engine, GUI
+                           │
+         ┌─────────────────┼──────────────────┐
+         ▼                 ▼                  ▼
+  draftstamp-core    draftstamp-ots     draftstamp-vault
+  files → commitment commitment → .ots  bundles: save, list,
+  receipts, verify   stamp, upgrade,    find, export
+                     Bitcoin check      storage backends
 ```
 
-| Crate | Purity | Role |
-| --- | --- | --- |
-| `draftstamp-core` | Pure: no files, no network | Format rules: canonical paths, salted leaves, Merkle tree, commitment, receipts, verification |
-| `draftstamp-ots` | Pure by default; the `client` feature adds network calls | OpenTimestamps proof format and status; with `client`, calendar submission and upgrade |
-| `draftstamp-wasm` | Pure | Exposes core and pure ots to the website |
-| `draftstamp-cli` | Does I/O: files and network | `stamp`, `verify`, `upgrade`, `status`, `hook install`; enables ots `client` |
+| Crate | I/O | Role | Status |
+| --- | --- | --- | --- |
+| `draftstamp-core` | None | Canonical paths, salted Merkle tree, commitment, receipts, file verification | Built |
+| `draftstamp-ots` | None: network through an `Http` interface the host supplies | Stamping with OpenTimestamps calendars, upgrading, checking proofs against Bitcoin headers | Built |
+| `draftstamp-vault` | Files, through storage backends | Writing and reading bundles, finding which stamps contain a file, project history, exporting evidence | Next |
+| `draftstamp-cli` | Files and network | The commands; supplies native HTTP to ots | Next |
 
-`draftstamp-core` and `draftstamp-ots` never depend on each other; the CLI and WASM crates combine them. Anything built later (extensions, plugins) sits on the CLI or WASM crate and never re-implements the format.
+`draftstamp-core` and `draftstamp-ots` never depend on each other. `draftstamp-vault` builds on both (it reads receipts and proofs), and the CLI, later the desktop app, sits on top. Anything built later never re-implements the format.
 
-Hosts pass the core paths relative to the project root with `/` separators, and each file's exact bytes read as binary. The core decides everything else.
+## Storage
+
+The vault writes through a small storage interface (save, list, read a bundle), so where bundles live can change without touching the rest.
+
+| Backend | When |
+| --- | --- |
+| Local folder (default `~/DraftStamp`, or a synced Dropbox or iCloud folder) | v1 |
+| Git repository: the commit is the snapshot; receipt and proof kept alongside | Later |
+| Remote encrypted storage: encrypted on the device, stored as ciphertext | Later |
+
+## Rules
+
+- Nothing about your work leaves your machine except a blinded 32-byte value sent to the OpenTimestamps calendars.
+- Proofs are completed quietly: any command first upgrades pending proofs, and network failures never block it.
+- The bundle format is open and versioned. A bundle verifies with the official OpenTimestamps client and a stdlib-only script, with no DraftStamp software.
