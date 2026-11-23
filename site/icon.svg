@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2b31"/>
+      <stop offset="1" stop-color="#0e0e11"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
+  <!-- a rubber stamp: handle, neck, body, and a green ink pad; centered in the tile -->
+  <g transform="translate(32 32) scale(1.2) translate(-32 -22.8)">
+    <circle cx="32" cy="13" r="6.4" fill="#fafafa"/>
+    <path d="M28.6 18.4h6.8l1.8 8.6H26.8z" fill="#fafafa"/>
+    <rect x="16" y="27" width="32" height="8.4" rx="2.8" fill="#fafafa"/>
+    <rect x="13.5" y="35.4" width="37" height="3.6" rx="1.8" fill="#34d399"/>
+  </g>
+</svg>

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DraftStamp docs</title>
+  <meta name="description" content="How to use DraftStamp: stamping, upgrading, sharing, verifying, the vault, settings, and what is revealed.">
+  <link rel="canonical" href="https://draftstamp.org/docs">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://draftstamp.org/docs">
+  <meta property="og:title" content="DraftStamp docs">
+  <meta property="og:description" content="How to use DraftStamp: stamping, upgrading, sharing, verifying, the vault, and what is revealed.">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon.svg" alt="">DraftStamp</a>
+    <nav class="nav">
+      <a href="./#install">Install</a>
+      <a href="docs.html" aria-current="page">Docs</a>
+      <a class="gh" href="https://github.com/anishnag/draftstamp" aria-label="GitHub">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span class="gh-label">GitHub</span>
+      </a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs">
+  <nav class="toc" aria-label="On this page">
+    <p>On this page</p>
+    <a href="#start">Getting started</a>
+    <a href="#commands">Commands</a>
+    <a href="#sharing">Sharing</a>
+    <a href="#verifying">Verifying without DraftStamp</a>
+    <a href="#vault">The vault</a>
+    <a href="#settings">Settings and ignores</a>
+    <a href="#privacy">What is revealed</a>
+    <a href="#how">How it works</a>
+  </nav>
+
+  <article class="prose">
+    <h1>Docs</h1>
+    <p class="intro">DraftStamp is a command-line tool, <code>draftstamp</code>. It timestamps folders or files in Bitcoin through <a href="https://opentimestamps.org">OpenTimestamps</a>, keeps the exact files with their proof in a local vault, and shares any file with a standard <code>.ots</code> proof. See <a href="./#install">Install</a> to get it.</p>
+
+    <div id="start" class="doc-section">
+    <h2>Getting started</h2>
+    <p>Name your project once, in its folder:</p>
+<div class="codeblock"><pre>cd ~/papers/riemann-draft
+draftstamp init</pre></div>
+    <p>Stamp whenever a draft matters. Stamps are deliberate: before sending something out, after a milestone.</p>
+<div class="codeblock"><pre>draftstamp stamp -m "first full draft"</pre></div>
+    <p>A new stamp is <strong>pending</strong>: the OpenTimestamps calendars have it, and Bitcoin confirms it, usually within a few hours. Then complete the proof:</p>
+<div class="codeblock"><pre>draftstamp upgrade</pre></div>
+    <p>See your stamps, and re-check one against Bitcoin:</p>
+<div class="codeblock"><pre>draftstamp log
+draftstamp verify</pre></div>
+
+    </div>
+    <div id="commands" class="doc-section">
+    <h2>Commands</h2>
+    <table>
+      <thead><tr><th>Command</th><th>What it does</th><th>Network</th></tr></thead>
+      <tbody>
+        <tr><td><code>init [--project &lt;name&gt;]</code></td><td>Write <code>.draftstamp</code> in this folder, naming its project</td><td>no</td></tr>
+        <tr><td><code>stamp [&lt;folder&gt; | &lt;file&gt;] [-m &lt;label&gt;]</code></td><td>Stamp a folder (this one by default) or a single file</td><td>calendars</td></tr>
+        <tr><td><code>upgrade [&lt;stamp&gt;]</code></td><td>Complete pending proofs once Bitcoin confirms them (all pending stamps if none is given)</td><td>calendars, explorers</td></tr>
+        <tr><td><code>log [--project &lt;name&gt; | --all]</code></td><td>List stamps, newest first (this folder's project by default)</td><td>no</td></tr>
+        <tr><td><code>find &lt;file&gt;</code></td><td>Which stamps contain this file's exact bytes?</td><td>no</td></tr>
+        <tr><td><code>check [&lt;stamp&gt;]</code></td><td>Is the stored record intact?</td><td>no</td></tr>
+        <tr><td><code>verify [&lt;stamp&gt;]</code></td><td>Check, then confirm the date with Bitcoin</td><td>explorers</td></tr>
+        <tr><td><code>share &lt;path&gt;... [--zip &lt;file&gt;]</code></td><td>Files or folders from a stamp, each with its own <code>.ots</code></td><td>one upgrade attempt</td></tr>
+        <tr><td><code>export [&lt;stamp&gt;]</code></td><td>The complete record as one zip</td><td>no</td></tr>
+      </tbody>
+    </table>
+    <p>A <code>&lt;stamp&gt;</code> is a full id, a unique prefix, or its 6-character ending (<code>e72b05</code>). Left out, it means the newest stamp of the current folder's project. Every command takes <code>--vault &lt;dir&gt;</code>. <code>check</code> and <code>verify</code> exit with code 3 if anything does not match.</p>
+
+    </div>
+    <div id="sharing" class="doc-section">
+    <h2>Sharing</h2>
+    <p>Paths are as they appear inside the stamp (as <code>log</code> and <code>find</code> show them):</p>
+<div class="codeblock"><pre>draftstamp share chapters/chapter3.tex                   # one file and its .ots
+draftstamp share chapters/                               # every file in a folder, folders kept
+draftstamp share chapters/ main.tex --zip for-reviewer.zip   # one zip with a README</pre></div>
+    <p>If the stamp is still pending, <code>share</code> tries to upgrade it first, so the proof reaches Bitcoin when it can. A folder has no single <code>.ots</code>: a <code>.ots</code> proves one file, so a folder is shared as one proof per file, all leading to the same stamp.</p>
+    <p><code>export</code> is different: it writes the complete record (every file, the receipt and the stamp's proof). Give it only to someone who should see everything.</p>
+
+    </div>
+    <div id="verifying" class="doc-section">
+    <h2>Verifying without DraftStamp</h2>
+    <table>
+      <thead><tr><th>You have</th><th>Run</th><th>It proves</th></tr></thead>
+      <tbody>
+        <tr><td>A shared file and its <code>.ots</code></td><td><code>ots verify -f file file.ots</code></td><td>This exact file existed by the block's date</td></tr>
+        <tr><td>An export</td><td><code>ots verify -f</code> on each file in <code>files/</code></td><td>Every file, each on its own</td></tr>
+        <tr><td>A full bundle</td><td>The steps in <a href="https://github.com/anishnag/draftstamp/blob/main/spec/0001_core.md">the core spec</a>, then <code>ots verify -d</code></td><td>The complete set: exactly these files</td></tr>
+      </tbody>
+    </table>
+    <div class="callout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><p><code>ots verify</code> checks the Bitcoin block against a local Bitcoin node. Without one, run <code>ots --no-bitcoin -v verify …</code>: it prints the block height and merkle root to compare with any block explorer. Install the client with <code>pipx install opentimestamps-client</code>.</p></div>
+
+    </div>
+    <div id="vault" class="doc-section">
+    <h2>The vault</h2>
+    <p>Stamps live in <code>~/.dsvault</code> (or <code>--vault</code>, or <code>$DRAFTSTAMP_VAULT</code>), one folder per stamp:</p>
+<div class="codeblock"><pre>~/.dsvault/20261121T140312Z-e72b05/
+├── snapshot.zip    the exact files, as they were
+├── receipt.json    paths, sizes, hashes and salts
+└── proof.ots       the OpenTimestamps proof</pre></div>
+    <p>Nothing is ever overwritten, except that a pending proof is replaced by its upgraded version. <strong>Back up the vault:</strong> a proof is only useful next to the exact files and receipt.</p>
+
+    </div>
+    <div id="settings" class="doc-section">
+    <h2>Settings and ignores</h2>
+    <p><strong><code>.draftstamp</code></strong> (written by <code>draftstamp init</code>) names a folder's project, so you don't pass <code>--project</code> each time. It is never stamped.</p>
+<div class="codeblock"><pre># .draftstamp
+project = "riemann-draft"</pre></div>
+    <p><strong><code>.draftstampignore</code></strong> leaves out build outputs with gitignore-like patterns. It is stamped, so the record shows what was excluded.</p>
+<div class="codeblock"><pre># .draftstampignore
+*.aux
+*.log
+build/
+figures/raw/*</pre></div>
+    <p><code>.git</code>, <code>.DS_Store</code> and similar are always skipped.</p>
+
+    </div>
+    <div id="privacy" class="doc-section">
+    <h2>What is revealed, and to whom</h2>
+    <ul>
+      <li><strong>The OpenTimestamps servers</strong> see one random-looking 32-byte value per stamp: not your files, their names, or how many there are.</li>
+      <li><strong>Someone you share a file with</strong> learns that file's contents and its path inside the stamp, and from the shape of its proof, its position and roughly how many files the stamp had. The other files' names and contents stay hidden: their hashes in the proof are salted.</li>
+      <li><strong>The receipt</strong> lists every file's name and salt. It stays in your vault unless you <code>export</code>.</li>
+      <li><strong>DraftStamp itself</strong> collects nothing: no telemetry, no update checks. It contacts only the OpenTimestamps aggregators and calendars, and two block explorers (blockstream.info and mempool.space) when checking a block.</li>
+    </ul>
+
+    </div>
+    <div id="how" class="doc-section">
+    <h2>How it works</h2>
+    <ol>
+      <li><strong>Commit.</strong> Each file becomes a leaf, <code>SHA256(0x00 ‖ salt ‖ len(path) ‖ path ‖ SHA256(file))</code>, with a fresh random 16-byte salt. The leaves form an RFC 6962 Merkle tree, whose root is wrapped into a commitment: <code>SHA256(0x02 ‖ "draftstamp:v1" ‖ root)</code>.</li>
+      <li><strong>Timestamp.</strong> The commitment, plus a random nonce, goes to the public OpenTimestamps aggregators (at least two must accept it). They batch it with everyone else's into Bitcoin; <code>upgrade</code> fetches the path to the block.</li>
+      <li><strong>Keep.</strong> The files, receipt and proof go into the vault together.</li>
+      <li><strong>Share.</strong> A file's path through the tree is written as standard OpenTimestamps operations (prepend, append, sha256), followed by the stamp's proof: an ordinary <code>.ots</code> whose digest is the file's own SHA-256.</li>
+    </ol>
+    <p>The formats are specified in <a href="https://github.com/anishnag/draftstamp/tree/main/spec"><code>spec/</code></a>, with test vectors from an independent Python implementation. More answers in the <a href="https://github.com/anishnag/draftstamp/blob/main/docs/FAQ.md">FAQ</a>.</p>
+    </div>
+  </article>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon.svg" alt="">DraftStamp</a>
+    <span>Apache-2.0 · Built on <a class="link" href="https://opentimestamps.org">OpenTimestamps</a></span>
+    <div class="right">
+      <a href="./">Home</a>
+      <a href="https://github.com/anishnag/draftstamp/releases/latest">Releases</a>
+      <a href="https://github.com/anishnag/draftstamp">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+
+</body>
+</html>
