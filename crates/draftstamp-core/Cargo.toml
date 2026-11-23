@@ -3,6 +3,7 @@ name = "draftstamp-core"
 version = "0.1.0"
 description = "The DraftStamp engine: commit a folder, stamp it, and keep bundles in a vault."
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
