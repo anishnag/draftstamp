@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DraftStamp: prove your work existed</title>
+  <meta name="description" content="DraftStamp timestamps your drafts in Bitcoin via OpenTimestamps, keeps the exact files with their proof, and lets you share any file with a standard .ots proof anyone can check.">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="icon.svg" alt="" width="26" height="26">
+      DraftStamp
+    </a>
+    <nav class="nav">
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#install">Install</a>
+      <a href="docs.html">Docs</a>
+      <a class="gh" href="https://github.com/anishnag/draftstamp">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span class="gh-label">GitHub</span>
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow">Open source · v0.1.0</span>
+        <h1>Prove your work existed,<br>with a date no one can forge.</h1>
+        <p class="lede">DraftStamp timestamps your drafts in Bitcoin and keeps the exact files with their proof. Later, share any file with a standard proof anyone can check, without DraftStamp and without revealing your other files.</p>
+        <div class="ctas">
+          <a class="btn primary" href="#install">Install</a>
+          <a class="btn" href="https://github.com/anishnag/draftstamp">View on GitHub</a>
+        </div>
+        <p class="fineprint">No account, no server, no fees. Only a hash leaves your machine.</p>
+      </div>
+
+      <div class="terminal" role="img" aria-label="A terminal session: stamping a project, upgrading the proof once Bitcoin confirms, sharing one file, and verifying it with the official OpenTimestamps client.">
+        <div class="terminal-bar"><i></i><i></i><i></i><span>~/papers/riemann-draft</span></div>
+<pre><span class="p">$ </span>draftstamp stamp -m "first full draft"
+Stamped 14 files of riemann-draft as 20261121T140312Z-e72b05.
+
+<span class="p">$ </span>draftstamp upgrade            <span class="c"># a few hours later</span>
+20261121T140312Z-e72b05  <span class="ok">confirmed in Bitcoin block 976886</span> (2026-11-21 15:38 UTC)
+
+<span class="p">$ </span>draftstamp share chapters/chapter3.tex
+Wrote chapter3.tex and chapter3.tex.ots from stamp 20261121T140312Z-e72b05.
+<span class="who">— the recipient, with the official OpenTimestamps client —</span><span class="p">$ </span>ots verify -f chapter3.tex chapter3.tex.ots
+<span class="ok">Success! Bitcoin block 976886 attests existence as of 2026-11-21 UTC</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="soft" id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="section-lede">DraftStamp builds on <a href="https://opentimestamps.org">OpenTimestamps</a>, the open standard for timestamping in Bitcoin. It adds what ongoing work needs: whole folders as one record, the exact files kept with each proof, and private sharing.</p>
+      <div class="flow" aria-label="Your files, a salted Merkle tree, one commitment, the OpenTimestamps calendars, a Bitcoin block">
+        <span>Your files</span><b>→</b><span>Salted Merkle tree</span><b>→</b><span>One 32-byte commitment</span><b>→</b><span>OpenTimestamps calendars</span><b>→</b><span>A Bitcoin block</span>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <div class="num">1</div>
+          <h3>Stamp</h3>
+          <p>Point it at a folder or a file. Each file's contents and path are committed, with a random salt per file, into one value sent to the free public calendars.</p>
+        </div>
+        <div class="card">
+          <div class="num">2</div>
+          <h3>Keep</h3>
+          <p>The exact files, a receipt and the proof are stored together in a local vault. Once Bitcoin confirms (usually a few hours), <code>upgrade</code> completes the proof.</p>
+        </div>
+        <div class="card">
+          <div class="num">3</div>
+          <h3>Share</h3>
+          <p>Any file, folder or selection can be shared, each file with its own standard <code>.ots</code>. Salts keep the files you didn't share hidden.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2>Install</h2>
+      <p class="section-lede">One command for your platform. No <code>sudo</code> needed.</p>
+
+      <div class="tabs" role="tablist" aria-label="Platform">
+        <button class="tab" role="tab" data-panel="mac-arm">macOS (Apple Silicon)</button>
+        <button class="tab" role="tab" data-panel="mac-intel">macOS (Intel)</button>
+        <button class="tab" role="tab" data-panel="linux-x64">Linux (x86_64)</button>
+        <button class="tab" role="tab" data-panel="linux-arm">Linux (ARM64)</button>
+        <button class="tab" role="tab" data-panel="windows">Windows</button>
+        <button class="tab" role="tab" data-panel="source">From source</button>
+      </div>
+
+      <div class="panel" id="mac-arm" role="tabpanel">
+        <div class="codeblock"><button class="copy">Copy</button><pre><code>mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-aarch64-apple-darwin.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-aarch64-apple-darwin/draftstamp</code></pre></div>
+      </div>
+      <div class="panel" id="mac-intel" role="tabpanel" hidden>
+        <div class="codeblock"><button class="copy">Copy</button><pre><code>mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-x86_64-apple-darwin.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-x86_64-apple-darwin/draftstamp</code></pre></div>
+      </div>
+      <div class="panel" id="linux-x64" role="tabpanel" hidden>
+        <div class="codeblock"><button class="copy">Copy</button><pre><code>mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-x86_64-unknown-linux-gnu/draftstamp</code></pre></div>
+      </div>
+      <div class="panel" id="linux-arm" role="tabpanel" hidden>
+        <div class="codeblock"><button class="copy">Copy</button><pre><code>mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-aarch64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-aarch64-unknown-linux-gnu/draftstamp</code></pre></div>
+      </div>
+      <div class="panel" id="windows" role="tabpanel" hidden>
+        <p class="note" style="margin-top:0">Download <a href="https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-x86_64-pc-windows-msvc.zip">draftstamp-x86_64-pc-windows-msvc.zip</a>, unzip it, and put <code>draftstamp.exe</code> in a folder on your PATH.</p>
+      </div>
+      <div class="panel" id="source" role="tabpanel" hidden>
+        <div class="codeblock"><button class="copy">Copy</button><pre><code>cargo install --locked --git https://github.com/anishnag/draftstamp draftstamp-cli</code></pre></div>
+        <p class="note">Needs Rust 1.89 or newer.</p>
+      </div>
+
+      <p class="note">Make sure <code>~/.local/bin</code> is on your PATH (on macOS: <code>echo 'export PATH="$HOME/.local/bin:$PATH"' &gt;&gt; ~/.zshrc</code>, then open a new terminal). Checksums for every build are on the <a href="https://github.com/anishnag/draftstamp/releases/latest">releases page</a>. To check proofs yourself, install the official client: <code>pipx install opentimestamps-client</code>.</p>
+    </div>
+  </section>
+
+  <section class="soft">
+    <div class="wrap split">
+      <div>
+        <h2>Anyone can check it, without us</h2>
+        <p class="section-lede" style="margin-bottom:0">Every shared file comes with an ordinary OpenTimestamps proof. The person you send it to runs the official client, or uses any other implementation. DraftStamp isn't involved.</p>
+      </div>
+      <ul class="checks">
+        <li><strong>Standard proofs.</strong> Each file's <code>.ots</code> is checked with <code>ots verify -f</code>, exactly like any OpenTimestamps proof.</li>
+        <li><strong>Private by design.</strong> The calendars see one random-looking 32-byte value. A shared file reveals itself, not the others.</li>
+        <li><strong>Built to last.</strong> A confirmed proof needs only Bitcoin's block headers. No company has to stay in business.</li>
+        <li><strong>Open formats.</strong> Everything is <a href="https://github.com/anishnag/draftstamp/tree/main/spec">specified</a>, with test vectors from an independent implementation.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Questions</h2>
+      <details>
+        <summary>Do I need Bitcoin or a wallet?</summary>
+        <p>No. The OpenTimestamps calendars are free public services that batch everyone's timestamps into Bitcoin transactions they pay for.</p>
+      </details>
+      <details>
+        <summary>What exactly does a stamp prove?</summary>
+        <p>That these exact bytes existed by the time of a Bitcoin block, give or take a couple of hours. It shows possession at a time, not authorship.</p>
+      </details>
+      <details>
+        <summary>How is this different from running <code>ots stamp</code>?</summary>
+        <p>DraftStamp's proofs work with the official client. It adds the workflow around them: whole folders as one record with each file's path bound in, the exact files kept with each proof, project history, and private sharing of any file or folder.</p>
+      </details>
+      <details>
+        <summary>What if I lose my vault?</summary>
+        <p>You lose the proofs you hadn't shared or exported, since a proof is only useful next to the exact files. Keep <code>~/.dsvault</code> in your backups.</p>
+      </details>
+      <p class="note">More in the <a href="docs.html">docs</a> and the <a href="https://github.com/anishnag/draftstamp/blob/main/docs/FAQ.md">full FAQ</a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>DraftStamp · Apache-2.0</span>
+    <span>Built on <a href="https://opentimestamps.org">OpenTimestamps</a></span>
+    <div class="right">
+      <a href="docs.html">Docs</a>
+      <a href="https://github.com/anishnag/draftstamp/releases/latest">Releases</a>
+      <a href="https://github.com/anishnag/draftstamp">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>
