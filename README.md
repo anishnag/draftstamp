@@ -33,18 +33,37 @@ Also: `log`, `verify`, `find`, `export`, and `share <folder> --zip`. See `drafts
 
 ## Install
 
+**macOS (Apple Silicon)**
+
 ```sh
 mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-aarch64-apple-darwin.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-aarch64-apple-darwin/draftstamp
+```
 
-# macOS (Apple Silicon; Intel: x86_64-apple-darwin)
-curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-aarch64-apple-darwin.tar.gz | tar -xz
-mv draftstamp-aarch64-apple-darwin/draftstamp ~/.local/bin/
+**macOS (Intel)**
 
-# Linux (x86_64; ARM: aarch64-unknown-linux-gnu)
-curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-x86_64-unknown-linux-gnu.tar.gz | tar -xz
-mv draftstamp-x86_64-unknown-linux-gnu/draftstamp ~/.local/bin/
+```sh
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-x86_64-apple-darwin.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-x86_64-apple-darwin/draftstamp
+```
 
-# From source (Rust 1.89+)
+**Linux (x86_64)**
+
+```sh
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-x86_64-unknown-linux-gnu/draftstamp
+```
+
+**Linux (ARM64)**
+
+```sh
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-aarch64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 draftstamp-aarch64-unknown-linux-gnu/draftstamp
+```
+
+**From source** (Rust 1.89+)
+
+```sh
 cargo install --locked --git https://github.com/anishnag/draftstamp draftstamp-cli
 ```
 
