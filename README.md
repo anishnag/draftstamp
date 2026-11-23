@@ -41,18 +41,22 @@ complete record). Run `draftstamp --help` for the rest.
 
 ```sh
 # macOS (Apple Silicon; for Intel use x86_64-apple-darwin)
+mkdir -p ~/.local/bin
 curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-aarch64-apple-darwin.tar.gz | tar -xz
-sudo mv draftstamp-aarch64-apple-darwin/draftstamp /usr/local/bin/
+mv draftstamp-aarch64-apple-darwin/draftstamp ~/.local/bin/
 
 # Linux (x86_64; for ARM use aarch64-unknown-linux-gnu)
+mkdir -p ~/.local/bin
 curl -fsSL https://github.com/anishnag/draftstamp/releases/latest/download/draftstamp-x86_64-unknown-linux-gnu.tar.gz | tar -xz
-sudo mv draftstamp-x86_64-unknown-linux-gnu/draftstamp /usr/local/bin/
+mv draftstamp-x86_64-unknown-linux-gnu/draftstamp ~/.local/bin/
 
 # From source (Rust 1.89+)
 cargo install --locked --git https://github.com/anishnag/draftstamp draftstamp-cli
 ```
 
-Windows and checksums are on the [releases page](https://github.com/anishnag/draftstamp/releases/latest).
+No `sudo` needed. If `draftstamp` isn't found afterwards, add `~/.local/bin` to your PATH (on macOS:
+`echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc`, then open a new terminal). Windows and
+checksums are on the [releases page](https://github.com/anishnag/draftstamp/releases/latest).
 To check proofs, install the official client: `pipx install opentimestamps-client`.
 
 ## How it works
